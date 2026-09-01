@@ -1,0 +1,16 @@
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Python (아이콘 생성 스크립트용)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Claude
+.claude/
