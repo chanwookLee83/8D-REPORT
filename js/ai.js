@@ -1,0 +1,237 @@
+/* ===== AI 사진 분석 (BYOK · Anthropic API 직접 호출) =====
+ * 온라인 + 사용자 API 키가 있을 때만 동작. 키는 이 브라우저(localStorage)에만 저장되고
+ * api.anthropic.com 으로만 전송된다. 오프라인/키 없음이면 기존 템플릿 자동작성(Report.applyAutoDraft)을 쓴다.
+ */
+(function (global) {
+  const KEY_LS = 'qcr.anthropicKey.v1';
+  const MODEL_LS = 'qcr.aiModel.v1';
+  const DEFAULT_MODEL = 'claude-opus-5'; // 콘솔에서 AI.setModel('claude-sonnet-5') 등으로 변경 가능
+  const ENDPOINT = 'https://api.anthropic.com/v1/messages';
+
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function lsSet(k, v) {
+    try { if (v && v.trim()) localStorage.setItem(k, v.trim()); else localStorage.removeItem(k); } catch (e) {}
+  }
+
+  function getKey() { return lsGet(KEY_LS); }
+  function setKey(v) { lsSet(KEY_LS, v); }
+  function getModel() { return lsGet(MODEL_LS) || DEFAULT_MODEL; }
+  function setModel(v) { lsSet(MODEL_LS, v); }
+  function hasKey() { return !!getKey(); }
+  function isOnline() { return navigator.onLine !== false; }
+  function available() { return isOnline() && hasKey(); }
+
+  function splitDataUrl(dataUrl) {
+    const m = /^data:(image\/[a-zA-Z]+);base64,(.+)$/.exec(dataUrl || '');
+    return m ? { media_type: m[1], data: m[2] } : null;
+  }
+
+  /* 플라스틱 사출/조립 부품 불량의 표준 원인 계통 — D4·5-Why를 공정 파라미터 수준으로 유도 */
+  const DOMAIN = [
+    '## 플라스틱 사출 부품 불량 표준 원인 계통 (D4·5-Why 작성 근거)',
+    '- 미성형(Short Shot): 발생=사출압/보압 부족, 수지 용융온도·금형온도 낮음, 충전속도 느림, 게이트/러너 과소·막힘, 벤트 불량(에어트랩), 재료 수분·유동성 저하, 계량 부족, 노즐 막힘 / 유출=미성형 판정 기준(한도견본) 미흡, 말단부·리브·보스 사각지대 미검, 샘플검사, 검사 조도 부족',
+    '- 크랙/파손: 발생=취출 시 무리한 이젝션, 잔류응력·과보압, 냉각 부족, 재생재 과다로 취화, 조립 압입력 과다 / 유출=미세 크랙 육안 한계, 조립 후 발생분 미검출',
+    '- 웰드라인/플로마크: 발생=유동 선단 합류부 온도 저하, 벤트 불량, 게이트 배치·수 / 유출=외관 등급·한도견본 모호',
+    '- 싱크마크: 발생=보압 부족·시간 짧음, 두께 과대부 냉각 불균일, 금형온도 높음',
+    '- 플래시(버): 발생=형체력 부족, 파팅면 마모·이물, 과사출, 수지온도 과다',
+    '- 이물 혼입/흑점: 발생=호퍼·건조기 오염, 재생재 관리 미흡, 배럴 체류·탄화, 분진 / 유출=색상 대비 낮아 육안 한계',
+    '- 변형/휨(Warpage): 발생=냉각 불균일, 잔류응력, 취출 후 방치·적재, 게이트 위치 / 유출=치수 게이지·검사구 미적용',
+    '- 치수 불량: 발생=수축률 관리 미흡, 금형 마모, 성형조건(압력·온도·시간) 변동 / 유출=측정 주기·샘플 수 부족',
+    '- 단자/터미널 휨·변형(조립): 발생=압입 정렬 불량, 가이드·지그 마모, 외력 집중, 부품 형상 취약 / 유출=조립 후 변형 검사 항목 부재',
+  ].join('\n');
+
+  const SYSTEM = [
+    '당신은 자동차 사출·조립 부품 품질 엔지니어입니다. 불량 사진과 정보를 근거로 8D 대책서 전체(D0~D8)를 실제 제출용 문서로 작성합니다.',
+    '문체: 실제 대책서에 그대로 들어갈 완결된 서술체. 각 항목은 이미 수행했거나 확정한 조치를 기술하듯 "~함", "~조치함", "~재설정함", "~로 확인됨" 같은 종결형 평서문으로 씁니다.',
+    '금지: "~해야 합니다", "~하는 것이 좋습니다", "~할 필요가 있습니다", "다음과 같이 진행합니다" 등 지침서·설명서 말투. 절차를 나열하지 말고 결과·판단을 단정적으로 기술합니다.',
+    '간결하게: 군더더기 없이 핵심만. 한 항목은 1~3문장. 전문 용어(공정 파라미터·검사 기준)를 정확히 사용합니다.',
+    '검증 항목(d3_verify·d4_verify·d6_effect 등)은 "달성 여부 확인:" 으로 시작하고 판정 지표와 목표치를 제시합니다. 예: "달성 여부 확인: 봉쇄율 100%, 추가 유출 0건 (선별 기록 대조)".',
+    '작업자가 입력한 "불량 유형"과 사진에 표기한 "표시 영역" 내용은 확정된 사실로 간주합니다. 사진 해상도가 낮아도 이 정보를 신뢰하고 해당 불량의 메커니즘에 근거해 원인·대책을 전개합니다.',
+    '예: 표시 영역에 "미성형"이 있으면 미성형(Short Shot)으로 확정하고, D4·5-Why·D5는 사출압·보압·수지온도·금형온도·게이트·벤트 등 공정 파라미터 수준으로 기술합니다. "작업자 부주의" 같은 일반론은 금지.',
+    '사진에서 관찰되는 사실과 표준 원인 계통에 근거한 추정을 구분하고, 추정에는 "~로 추정됨"을 붙입니다.',
+    '날짜·수량·LOT번호·인명은 지어내지 말고 해당 자리에 "[확인]" 을 넣어 미확정 값임을 표시합니다. 예: "격리 수량 [확인] EA".',
+    '출력은 지정된 형태의 JSON 객체 하나만. 마크다운 코드펜스나 설명 문장을 붙이지 마세요. 모든 문자열 값은 한국어.',
+  ].join(' ');
+
+  const SHAPE_HINT = {
+    defect_summary: '사진과 표시 영역으로 확인되는 불량 요약 (1~2문장)',
+    defect_type_guess: '불량 유형 (입력값/표시가 있으면 그대로. 예: 미성형(Short Shot))',
+    confidence: 'high | medium | low',
+    regions: [{ box: [0.12, 0.34, 0.2, 0.15], note: '해당 영역의 불량 내용(현상/부위)' }],
+    fields: {
+      defectType: '불량 유형',
+      defectDesc: '불량 현상 상세 (부위·범위·정도)',
+      d0_symptom: 'D0 증상 인식 / 초기 상황 (관찰 사실 위주로 간결하게)',
+      d0_era: 'D0 비상 대응 조치 — 시행한 불량품 격리·재고 홀드·출하 정지·대상 LOT 선별·고객 통보를 단정적으로 기술',
+      d2_what: 'D2 What — 무엇이 (부품·현상)',
+      d2_where: 'D2 Where — 어디서 (부위/게이트 반대편·말단부 등)',
+      d2_when: 'D2 When — 언제 (미확정이면 "[확인]")',
+      d2_who: 'D2 Who — 누가 발견 (미확정이면 "[확인]")',
+      d2_how: 'D2 How — 검출 방법 / 판정 기준',
+      d2_howmany: 'D2 How many — 규모/추세 (수량 미확정이면 "[확인]")',
+      d2_why: 'D2 Why — 왜 문제인가 (기능/조립/외관 영향)',
+      d2_is: 'D2 IS — 발생한다 (조건)',
+      d2_isnot: 'D2 IS NOT — 발생하지 않는다 (대비 조건)',
+      d3_action: 'D3 봉쇄(임시) 조치 — 시행한 전수 선별·재검사 범위, 대상 LOT, 격리 방법을 단정적으로 기술',
+      d3_result: 'D3 선별 결과 (검사 수량·불량 수량, 미확정이면 "[확인]")',
+      d3_verify: 'D3 유효성 검증 — "달성 여부 확인:" + 봉쇄율 %·추가 유출 건수 등 판정 지표',
+      d4_occur: 'D4 발생 원인 — 공정 파라미터 수준으로 단정',
+      d4_escape: 'D4 유출 원인 — 검사 체계의 공백',
+      d4_verify: 'D4 원인 검증 — "달성 여부 확인:" + 재현시험 결과·성형조건 로그 대조 등 검증 근거',
+      d5_occur: 'D5 발생 방지(영구) 대책 — 재설정한 공정 조건·표준·설비 조치',
+      d5_escape: 'D5 유출 방지(영구) 대책 — 개정한 검사기준·계측기·샘플링·Poka-Yoke',
+      d5_risk: 'D5 부작용 / 위험성 검토 (사이클타임, 생산성, 작업자 적응 등)',
+      d5_basis: 'D5 대책 선정 근거 (대안 비교 결과)',
+      d6_effect: 'D6 효과 검증 — "달성 여부 확인:" + 시정 전/후 불량률 비교·목표치 대비 판정',
+      d7_lesson: 'D7 수평 전개 (유사 부품·공정·타 라인 반영)',
+      d7_std: 'D7 표준화 / 교육 (작업표준서·검사기준서·PFMEA·관리계획서 반영 내용)',
+      d8_closing: 'D8 종결 코멘트 / 팀 노고 치하',
+    },
+    why: {
+      occur: ['Why1', 'Why2', 'Why3', 'Why4', 'Why5', '근본원인(검증 대상)'],
+      escape: ['Why1', 'Why2', 'Why3', 'Why4', 'Why5', '근본원인(검증 대상)'],
+    },
+    fishbone: {
+      man: ['원인', '원인'],
+      machine: ['원인', '원인'],
+      material: ['원인', '원인'],
+      method: ['원인', '원인'],
+      measure: ['원인', '원인'],
+      env: ['원인', '원인'],
+    },
+    notes: '분석 한계 / 실측·성형조건 데이터로 확인이 필요한 사항 (간결한 목록형)',
+  };
+
+  function buildPrompt(fields, markers) {
+    const ctx = [
+      ['고객사', fields.customer],
+      ['부품명', fields.partName],
+      ['P/N', fields.partNo],
+      ['불량 유형(입력값)', fields.defectType],
+      ['발생 공정', fields.defectProcess],
+      ['불량 현상 상세(입력값)', fields.defectDesc],
+    ]
+      .filter(([, v]) => (v == null ? '' : String(v)).trim())
+      .map(([k, v]) => '- ' + k + ': ' + v)
+      .join('\n') || '- (기본 정보 미입력)';
+
+    const mk = (markers && markers.length)
+      ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
+      : '- (표시 영역 없음)';
+
+    return [
+      '## 기본 정보',
+      ctx,
+      '',
+      '## 표시 영역 — 작업자가 사진에 직접 표기 (확정 사실)',
+      mk,
+      '',
+      DOMAIN,
+      '',
+      '## 요청',
+      '첨부한 불량 사진(빨간 박스·번호는 위 표시 영역)과 위 정보를 근거로, 실제 제출용 8D 대책서 전체를 아래 형태의 JSON 객체 하나로 출력하세요.',
+      JSON.stringify(SHAPE_HINT, null, 2),
+      '',
+      '- D0~D8 모든 fields 항목을 채우되, 설명서·지침 말투("~해야 합니다")가 아니라 이미 수행·확정한 조치를 기술하는 종결형 평서문("~함", "~재설정함", "~로 확인됨")으로 씁니다.',
+      '- 각 항목 1~3문장, 군더더기 없이 간결하게. 원인·대책은 공정 파라미터·검사 기준 수준으로 단정합니다.',
+      '- 검증 항목(d3_verify·d4_verify·d6_effect)은 "달성 여부 확인:" 으로 시작하고 판정 지표·목표치를 제시합니다.',
+      '- 불량 유형 입력값 또는 표시 영역 내용이 있으면 그것을 확정으로 삼고 원인·대책을 전개합니다.',
+      '- why.occur / why.escape 는 각 6개 항목(Why1~5 + 근본원인). 앞 단계의 답이 다음 "왜?"의 전제가 되도록 인과로 연결합니다.',
+      '- fishbone 은 6M(man·machine·material·method·measure·env) 카테고리별 원인 2~4개.',
+      '- regions.box 는 좌상단 (0,0) ~ 우하단 (1,1) 정규화 [x, y, w, h]. 표시 영역이 이미 있거나 표시할 것이 없으면 빈 배열.',
+      '- 날짜·수량·LOT·인명은 지어내지 말고 해당 자리에 "[확인]" 표기.',
+    ].join('\n');
+  }
+
+  function extractJSON(text) {
+    let t = (text || '').trim();
+    t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const s = t.indexOf('{');
+    const e = t.lastIndexOf('}');
+    if (s === -1 || e === -1 || e < s) throw new Error('응답에서 JSON을 찾지 못했습니다.');
+    return JSON.parse(t.slice(s, e + 1));
+  }
+
+  async function analyze(imageDataUrl, fields, markers) {
+    if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
+    const key = getKey();
+    if (!key) throw new Error('API 키가 설정되지 않았습니다.');
+    const img = splitDataUrl(imageDataUrl);
+    if (!img) throw new Error('불량 사진을 먼저 업로드하세요.');
+
+    const body = {
+      model: getModel(),
+      max_tokens: 16000,
+      stream: true,
+      system: SYSTEM,
+      output_config: { effort: 'medium' },
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: img.media_type, data: img.data } },
+            { type: 'text', text: buildPrompt(fields || {}, markers || []) },
+          ],
+        },
+      ],
+    };
+
+    let res;
+    try {
+      res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      throw new Error('네트워크 오류: ' + (e && e.message ? e.message : e));
+    }
+
+    if (!res.ok) {
+      let raw = '';
+      try { raw = await res.text(); } catch (e) {}
+      let msg = '';
+      try { msg = (JSON.parse(raw).error || {}).message || ''; } catch (e) {}
+      if (res.status === 401) msg = 'API 키가 올바르지 않습니다.';
+      throw new Error('API 오류 (' + res.status + ')' + (msg ? ': ' + msg : ''));
+    }
+
+    // SSE 스트림 파싱 (thinking_delta 는 무시하고 text 만 누적)
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', text = '', stopReason = null, usage = null, model = null;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        const l = line.trim();
+        if (!l.startsWith('data:')) continue;
+        const payload = l.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        let ev;
+        try { ev = JSON.parse(payload); } catch (e) { continue; }
+        if (ev.type === 'error') throw new Error('스트림 오류: ' + ((ev.error || {}).message || ''));
+        if (ev.type === 'message_start') model = (ev.message || {}).model || null;
+        else if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') text += ev.delta.text;
+        else if (ev.type === 'message_delta') {
+          if (ev.delta && ev.delta.stop_reason) stopReason = ev.delta.stop_reason;
+          if (ev.usage) usage = ev.usage;
+        }
+      }
+    }
+
+    if (stopReason === 'refusal') throw new Error('모델이 응답을 거부했습니다.');
+    if (!text.trim()) throw new Error('응답에 텍스트가 없습니다.');
+    return { result: extractJSON(text), usage: usage, model: model };
+  }
+
+  global.AI = { hasKey, getKey, setKey, getModel, setModel, available, isOnline, analyze, DEFAULT_MODEL };
+})(window);
