@@ -129,6 +129,68 @@
     notes: '분석 한계 / 실측·성형조건 데이터로 확인이 필요한 사항 (간결한 목록형)',
   };
 
+  /* AI가 작성할 수 있는 구획 — 사용자가 개별 선택 */
+  const SECTIONS = {
+    overview: { label: '불량 개요 (유형·현상·표시영역)', fields: ['defectType', 'defectDesc'], regions: true },
+    d0: { label: 'D0 비상 대응', fields: ['d0_symptom', 'd0_era'] },
+    d2: { label: 'D2 문제 정의 (5W2H·IS/IS NOT)', fields: ['d2_what', 'd2_where', 'd2_when', 'd2_who', 'd2_how', 'd2_howmany', 'd2_why', 'd2_is', 'd2_isnot'] },
+    d3: { label: 'D3 봉쇄(임시) 조치', fields: ['d3_action', 'd3_result', 'd3_verify'] },
+    d4: { label: 'D4 근본 원인 + 5-Why', fields: ['d4_occur', 'd4_escape', 'd4_verify'], why: true },
+    d5: { label: 'D5 영구 시정 대책', fields: ['d5_occur', 'd5_escape', 'd5_risk', 'd5_basis'] },
+    d6: { label: 'D6 효과 검증', fields: ['d6_effect'] },
+    d7: { label: 'D7 표준화·수평 전개', fields: ['d7_lesson', 'd7_std'] },
+    d8: { label: 'D8 종결', fields: ['d8_closing'] },
+    fishbone: { label: '특성요인도 (6M)', fishbone: true },
+  };
+  const SECTION_ORDER = ['overview', 'd0', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'fishbone'];
+
+  function normScope(scope) {
+    const valid = (Array.isArray(scope) ? scope : []).filter((s) => SECTIONS[s]);
+    return valid.length ? valid : SECTION_ORDER.slice();
+  }
+
+  /* 선택된 구획만 담은 출력 형태 힌트 */
+  function shapeForScope(scope) {
+    const set = new Set(normScope(scope));
+    const out = {
+      defect_summary: SHAPE_HINT.defect_summary,
+      defect_type_guess: SHAPE_HINT.defect_type_guess,
+      confidence: SHAPE_HINT.confidence,
+    };
+    if (set.has('overview')) out.regions = SHAPE_HINT.regions;
+    const fields = {};
+    SECTION_ORDER.forEach((s) => {
+      if (!set.has(s)) return;
+      (SECTIONS[s].fields || []).forEach((k) => { if (SHAPE_HINT.fields[k]) fields[k] = SHAPE_HINT.fields[k]; });
+    });
+    if (Object.keys(fields).length) out.fields = fields;
+    if (set.has('d4')) out.why = SHAPE_HINT.why;
+    if (set.has('fishbone')) out.fishbone = SHAPE_HINT.fishbone;
+    out.notes = SHAPE_HINT.notes;
+    return out;
+  }
+
+  /* Report.applyPhotoAnalysis 용 필터: 어떤 키/채널을 반영할지 */
+  function scopeFilter(scope) {
+    const set = new Set(normScope(scope));
+    const fields = new Set();
+    SECTION_ORDER.forEach((s) => {
+      if (!set.has(s)) return;
+      (SECTIONS[s].fields || []).forEach((k) => fields.add(k));
+    });
+    return {
+      fields: fields,
+      why: set.has('d4'),
+      fishbone: set.has('fishbone'),
+      regions: set.has('overview'),
+      overview: set.has('overview'),
+    };
+  }
+
+  function scopeLabels(scope) {
+    return normScope(scope).map((s) => SECTIONS[s].label).join(', ');
+  }
+
   function auxLines(fields) {
     return [
       ['부품 유형(지정)', fields.aux_partType],
@@ -146,7 +208,9 @@
       .join('\n');
   }
 
-  function buildPrompt(fields, markers, imgCount, observations) {
+  function buildPrompt(fields, markers, imgCount, observations, scope) {
+    const sc = normScope(scope);
+    const partial = sc.length < SECTION_ORDER.length;
     const ctx = [
       ['고객사', fields.customer],
       ['부품명', fields.partName],
@@ -182,17 +246,20 @@
       DOMAIN,
       '',
       '## 요청',
-      '첨부한 ' + (imgCount ? imgCount + '장의 ' : '') + '이미지(전체 사진의 빨간 박스·번호 = 위 표시 영역, 이어지는 확대 크롭은 각 표시 영역, 마지막 참고 사진)와 위 정보를 근거로, 실제 제출용 8D 대책서 전체를 아래 형태의 JSON 객체 하나로 출력하세요.',
-      JSON.stringify(SHAPE_HINT, null, 2),
+      '첨부한 ' + (imgCount ? imgCount + '장의 ' : '') + '이미지(전체 사진의 빨간 박스·번호 = 위 표시 영역, 이어지는 확대 크롭은 각 표시 영역, 마지막 참고 사진)와 위 정보를 근거로, 실제 제출용 8D 대책서를 아래 형태의 JSON 객체 하나로 출력하세요.',
+      partial
+        ? '★ 이번 분석 대상 구획: ' + scopeLabels(sc) + '. 아래 JSON 형태에 있는 키만 작성하고, 그 외 항목은 JSON에서 완전히 생략하세요.'
+        : '',
+      JSON.stringify(shapeForScope(sc), null, 2),
       '',
       '- 먼저 부품 유형(사출 성형품 / 조립품)을 판정하고 그 계통으로 원인·대책을 전개합니다.',
-      '- D0~D8 모든 fields 항목을 채우되, 설명서·지침 말투("~해야 합니다")가 아니라 이미 수행·확정한 조치를 기술하는 종결형 평서문("~함", "~재설정함", "~로 확인됨")으로 씁니다.',
+      '- 위 JSON 형태에 포함된 fields 항목만 채우되, 설명서·지침 말투("~해야 합니다")가 아니라 이미 수행·확정한 조치를 기술하는 종결형 평서문("~함", "~재설정함", "~로 확인됨")으로 씁니다.',
       '- 각 항목 1~3문장, 군더더기 없이 간결하게. 원인·대책은 공정 파라미터·검사 기준 수준으로 단정합니다.',
       '- 검증 항목(d3_verify·d4_verify·d6_effect)은 "달성 여부 확인:" 으로 시작하고 판정 지표·목표치를 제시합니다.',
       '- 불량 유형 입력값 또는 표시 영역 내용이 있으면 그것을 확정으로 삼고 원인·대책을 전개합니다.',
-      '- why.occur / why.escape 는 각 6개 항목(Why1~5 + 근본원인). 앞 단계의 답이 다음 "왜?"의 전제가 되도록 인과로 연결합니다.',
-      '- fishbone 은 6M(man·machine·material·method·measure·env) 카테고리별 원인 2~4개.',
-      '- regions.box 는 좌상단 (0,0) ~ 우하단 (1,1) 정규화 [x, y, w, h]. 표시 영역이 이미 있거나 표시할 것이 없으면 빈 배열.',
+      sc.indexOf('d4') >= 0 ? '- why.occur / why.escape 는 각 6개 항목(Why1~5 + 근본원인). 앞 단계의 답이 다음 "왜?"의 전제가 되도록 인과로 연결합니다.' : '',
+      sc.indexOf('fishbone') >= 0 ? '- fishbone 은 6M(man·machine·material·method·measure·env) 카테고리별 원인 2~4개.' : '',
+      sc.indexOf('overview') >= 0 ? '- regions.box 는 좌상단 (0,0) ~ 우하단 (1,1) 정규화 [x, y, w, h]. 표시 영역이 이미 있거나 표시할 것이 없으면 빈 배열.' : '',
       '- 날짜·수량·LOT·인명은 지어내지 말고 해당 자리에 "[확인]" 표기.',
     ]).join('\n');
   }
@@ -484,13 +551,14 @@
   }
 
   /* images: [{label, dataUrl}, ...] 또는 단일 dataURL 문자열
-   * opts: { twoStage:boolean, onStage:fn(label) } */
+   * opts: { twoStage:boolean, onStage:fn(label), scope:string[] } */
   async function analyze(images, fields, markers, opts) {
     if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
     if (!getKey()) throw new Error('API 키가 설정되지 않았습니다.');
     opts = opts || {};
     const f = fields || {};
     const mk = markers || [];
+    const scope = normScope(opts.scope);
     const built = buildImageContent(images);
     if (!built.imgCount) throw new Error('불량 사진을 먼저 업로드하세요.');
 
@@ -508,14 +576,15 @@
 
     if (opts.onStage) opts.onStage(twoStage ? '2/2 8D 작성 중…' : '8D 작성 중…');
     const content = built.content.concat([
-      { type: 'text', text: buildPrompt(f, mk, built.imgCount, observations) },
+      { type: 'text', text: buildPrompt(f, mk, built.imgCount, observations, scope) },
     ]);
     const out = await streamMessages(content, SYSTEM, 32000);
-    return { result: extractJSON(out.text), observations: observations, usage: out.usage, model: out.model };
+    return { result: extractJSON(out.text), scope: scope, observations: observations, usage: out.usage, model: out.model };
   }
 
   global.AI = {
     hasKey, getKey, setKey, getModel, setModel, getEffort, setEffort, getTwoStage, setTwoStage,
-    available, isOnline, analyze, askQuestions, assist, EFFORTS, DEFAULT_MODEL, DEFAULT_EFFORT,
+    available, isOnline, analyze, askQuestions, assist, scopeFilter, SECTIONS, SECTION_ORDER,
+    EFFORTS, DEFAULT_MODEL, DEFAULT_EFFORT,
   };
 })(window);

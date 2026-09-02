@@ -404,13 +404,16 @@
     return draft;
   }
 
-  /* ---- AI 사진 분석 결과 반영 (해당 항목을 AI 결과로 덮어씀 · AI가 낸 값만) ---- */
-  function applyPhotoAnalysis(result) {
+  /* ---- AI 사진 분석 결과 반영 (해당 항목을 AI 결과로 덮어씀 · AI가 낸 값만)
+   * allow: { fields:Set<string>, why:bool, fishbone:bool, regions:bool } — 지정 시 그 범위만 반영 ---- */
+  function applyPhotoAnalysis(result, allow) {
     if (!result || typeof result !== 'object') return 0;
     const target = Store.current();
     const fields = target.fields || (target.fields = {});
+    const okField = (k) => !allow || !allow.fields || allow.fields.has(k);
     let filled = 0;
     const setField = (k, v) => {
+      if (!okField(k)) return;
       v = (v == null ? '' : String(v)).trim();
       if (!v) return; // AI가 값을 안 낸 항목은 기존 내용 유지
       fields[k] = v;
@@ -432,10 +435,10 @@
       'd8_closing',
     ].forEach((k) => setField(k, rf[k]));
 
-    if (!(fields.defectDesc || '').trim()) setField('defectDesc', result.defect_summary);
+    if (okField('defectDesc') && !(fields.defectDesc || '').trim()) setField('defectDesc', result.defect_summary);
 
     // 5-Why (발생/유출) — AI가 배열을 내면 해당 채널 전체를 덮어씀
-    const w = result.why || {};
+    const w = (!allow || allow.why) ? (result.why || {}) : {};
     if (!target.why) target.why = { occur: ['', '', '', '', '', ''], escape: ['', '', '', '', '', ''] };
     ['occur', 'escape'].forEach((which) => {
       const arr = Array.isArray(w[which]) ? w[which] : null;
@@ -447,9 +450,9 @@
     });
 
     // 특성요인도(6M) — AI가 낸 카테고리만 교체
-    const fbIn = result.fishbone || {};
+    const fbIn = (!allow || allow.fishbone) ? (result.fishbone || {}) : {};
     const fb = target.fishbone || (target.fishbone = { problem: '', cats: {} });
-    if (!(fb.problem || '').trim()) {
+    if ((!allow || allow.fishbone) && !(fb.problem || '').trim()) {
       fb.problem = (fields.partName || '해당 부품') + ' ' + (fields.defectType || '불량') + ' 발생 원인 분석';
     }
     Store.FB_CATS.forEach(([key]) => {
@@ -468,7 +471,7 @@
       }
     });
 
-    if (global.Annotate && Annotate.importRegions) {
+    if ((!allow || allow.regions) && global.Annotate && Annotate.importRegions) {
       filled += Annotate.importRegions(result.regions) || 0;
     }
 

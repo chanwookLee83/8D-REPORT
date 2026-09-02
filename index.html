@@ -397,6 +397,16 @@
         <button type="button" id="aiQuestionCancel" class="btn btn-ghost">닫기</button>
       </div>
     </div>
+    <details class="ai-settings no-print" id="aiScope" open>
+      <summary>🎯 AI 분석 범위 선택 <span class="ai-aux-hint">(체크한 구획만 작성 · 기본 정보·사진은 작성자가 입력)</span></summary>
+      <div class="ai-settings-body">
+        <div id="aiScopeList" class="ai-scope-grid"></div>
+        <div class="ai-settings-row">
+          <button type="button" id="aiScopeAll" class="btn btn-ghost">전체 선택</button>
+          <button type="button" id="aiScopeNone" class="btn btn-ghost">전체 해제</button>
+        </div>
+      </div>
+    </details>
     <details class="ai-settings no-print" id="aiAux">
       <summary>🧩 AI 분석 보조 정보 <span class="ai-aux-hint">(선택 · 채울수록 근본원인 분석이 정확해집니다)</span></summary>
       <div class="ai-settings-body">

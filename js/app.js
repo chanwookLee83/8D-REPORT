@@ -209,6 +209,38 @@
     saveStatus.classList.remove('dirty');
   }
 
+  /* ---------- AI 분석 범위 선택 ---------- */
+  const AI_SCOPE_LS = 'qcr.aiScope.v1';
+  function initAiScope() {
+    const wrap = $('#aiScopeList');
+    if (!wrap || !AI.SECTION_ORDER) return;
+    let saved = null;
+    try { const raw = localStorage.getItem(AI_SCOPE_LS); if (raw) saved = new Set(JSON.parse(raw)); } catch (e) {}
+    wrap.innerHTML = '';
+    AI.SECTION_ORDER.forEach((key) => {
+      const sec = AI.SECTIONS[key];
+      const l = document.createElement('label');
+      l.innerHTML = '<input type="checkbox" data-scope="' + key + '"> ' + sec.label;
+      const cb = l.querySelector('input');
+      cb.checked = saved ? saved.has(key) : true;
+      cb.addEventListener('change', saveAiScope);
+      wrap.appendChild(l);
+    });
+    const all = $('#aiScopeAll'), none = $('#aiScopeNone');
+    if (all) all.addEventListener('click', () => { setAllScope(true); });
+    if (none) none.addEventListener('click', () => { setAllScope(false); });
+  }
+  function setAllScope(on) {
+    $$('#aiScopeList input[data-scope]').forEach((cb) => { cb.checked = on; });
+    saveAiScope();
+  }
+  function getAiScope() {
+    return $$('#aiScopeList input[data-scope]:checked').map((cb) => cb.dataset.scope);
+  }
+  function saveAiScope() {
+    try { localStorage.setItem(AI_SCOPE_LS, JSON.stringify(getAiScope())); } catch (e) {}
+  }
+
   /* ---------- AI 공통 헬퍼 ---------- */
   function aiPreflight() {
     if (!AI.isOnline()) { toast('오프라인 상태입니다. «✍ 템플릿 작성»을 사용하세요.'); return false; }
@@ -342,16 +374,18 @@
     const qBox = $('#aiQuestionBox');
 
     async function runAiAnalysis() {
+      const scope = getAiScope();
+      if (!scope.length) { toast('«🎯 AI 분석 범위 선택»에서 최소 1개 구획을 체크하세요'); return; }
       const label = aiBtn.textContent;
       aiBtn.disabled = true;
       aiClarifyBtn.disabled = true;
       const onStage = (s) => { aiBtn.textContent = '📷 ' + s; };
       onStage('분석 중… (1~2분)');
       try {
-        const { result } = await AI.analyze(aiCollectImages(), Store.current().fields || {}, aiCollectMarkers(), { onStage: onStage });
-        const n = Report.applyPhotoAnalysis(result);
+        const { result } = await AI.analyze(aiCollectImages(), Store.current().fields || {}, aiCollectMarkers(), { onStage: onStage, scope: scope });
+        const n = Report.applyPhotoAnalysis(result, AI.scopeFilter(scope));
         loadReport();
-        toast(n ? 'AI 8D 작성 완료 — ' + n + '개 항목. 날짜·수량 등은 직접 확인해 채우세요.' : '분석 완료 — 반영할 결과가 없습니다.');
+        toast(n ? 'AI 작성 완료 — ' + n + '개 항목. 날짜·수량 등은 직접 확인해 채우세요.' : '분석 완료 — 반영할 결과가 없습니다.');
       } catch (e) {
         toast('분석 실패: ' + (e && e.message ? e.message : e));
       } finally {
@@ -363,7 +397,10 @@
 
     aiBtn.addEventListener('click', () => {
       if (!aiPreflight()) return;
-      if (!confirm('AI가 불량 사진·표시 영역·보조 정보를 근거로 8D 대책서 전체(D0~D8)와 5-Why·특성요인도를 새로 작성합니다.\n해당 항목의 기존 내용은 덮어써집니다. 계속할까요?')) return;
+      const scope = getAiScope();
+      if (!scope.length) { toast('«🎯 AI 분석 범위 선택»에서 최소 1개 구획을 체크하세요'); return; }
+      const names = scope.map((k) => (AI.SECTIONS[k] || {}).label || k).join(', ');
+      if (!confirm('선택한 구획을 AI가 작성합니다:\n\n' + names + '\n\n해당 항목의 기존 내용은 덮어써집니다. 계속할까요?')) return;
       runAiAnalysis();
     });
 
@@ -401,7 +438,8 @@
       const auxAns = $('[data-field="aux_answers"]');
       if (auxAns) auxAns.value = ans;
       qBox.hidden = true;
-      if (!confirm('입력한 답변을 반영해 8D 대책서 전체를 새로 작성합니다.\n해당 항목의 기존 내용은 덮어써집니다. 계속할까요?')) return;
+      const names = getAiScope().map((k) => (AI.SECTIONS[k] || {}).label || k).join(', ');
+      if (!confirm('입력한 답변을 반영해 선택한 구획을 새로 작성합니다:\n\n' + (names || '(선택된 구획 없음)') + '\n\n기존 내용은 덮어써집니다. 계속할까요?')) return;
       runAiAnalysis();
     });
 
@@ -483,6 +521,7 @@
     initTabs();
     bindFields();
     initTableButtons();
+    initAiScope();
     initMenu();
     initAiAssist();
     Annotate.mount(afterChange);

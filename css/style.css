@@ -349,6 +349,10 @@ details.d8 .grid{margin-top:4px}
 .ai-settings-body input,.ai-settings-body select,.ai-settings-body textarea{border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:13px;background:#fcfcfd;color:var(--ink);font-family:inherit}
 .ai-settings-body textarea{resize:vertical;line-height:1.5}
 .ai-aux-hint{font-weight:500;color:#9aa0ae;font-size:11px}
+.ai-scope-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px}
+.ai-scope-grid label{flex-direction:row;align-items:flex-start;gap:7px;font-weight:500;font-size:12px;line-height:1.4;cursor:pointer}
+.ai-scope-grid input{flex:none;margin-top:1px}
+@media (max-width:560px){.ai-scope-grid{grid-template-columns:1fr}}
 .ai-settings-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ai-check{flex-direction:row!important;align-items:flex-start;gap:8px!important;font-weight:500!important;line-height:1.45}
 .ai-check input{flex:none;margin-top:1px}
