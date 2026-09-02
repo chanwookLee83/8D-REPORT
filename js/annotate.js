@@ -148,6 +148,34 @@
     return c.toDataURL('image/jpeg', 0.85);
   }
 
+  /* ---- 표시 영역 확대 크롭 (AI 분석용) ----
+   * 각 마커(박스/화살표/원)의 경계 상자를 여유를 두고 잘라 별도 이미지로 만든다.
+   * 전체 사진 1장만 볼 때보다 미세 결함(크랙·웰드라인·표면)을 훨씬 잘 판독한다. */
+  function markerCrops(maxCount) {
+    const p = photo();
+    if (!img || !p.base) return [];
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const shapes = numberedShapes().slice(0, maxCount || 6);
+    return shapes.map((s) => {
+      const xs = s.points.map((q) => q.x), ys = s.points.map((q) => q.y);
+      let x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+      let y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+      const minSz = Math.min(W, H) * 0.14;
+      if (x1 - x0 < minSz) { const c = (x0 + x1) / 2; x0 = c - minSz / 2; x1 = c + minSz / 2; }
+      if (y1 - y0 < minSz) { const c = (y0 + y1) / 2; y0 = c - minSz / 2; y1 = c + minSz / 2; }
+      const padX = (x1 - x0) * 0.55, padY = (y1 - y0) * 0.55;
+      x0 = Math.max(0, Math.round(x0 - padX)); x1 = Math.min(W, Math.round(x1 + padX));
+      y0 = Math.max(0, Math.round(y0 - padY)); y1 = Math.min(H, Math.round(y1 + padY));
+      const cw = Math.max(1, x1 - x0), ch = Math.max(1, y1 - y0);
+      const oc = document.createElement('canvas');
+      oc.width = cw; oc.height = ch;
+      const g = oc.getContext('2d');
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(img, x0, y0, cw, ch, 0, 0, cw, ch);
+      return { n: s.n, note: (s.note || '').trim(), dataUrl: oc.toDataURL('image/jpeg', 0.9) };
+    });
+  }
+
   /* ---- 포인터 ---- */
   function pos(e) {
     const rect = canvas.getBoundingClientRect();
@@ -383,5 +411,5 @@
     });
   }
 
-  global.Annotate = { mount, load, composite, render, renderMarkers, importRegions };
+  global.Annotate = { mount, load, composite, markerCrops, render, renderMarkers, importRegions };
 })(window);

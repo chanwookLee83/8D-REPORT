@@ -270,11 +270,21 @@
       const markers = (Store.current().photo.shapes || [])
         .filter((s) => s.type !== 'pen' && s.n)
         .map((s) => ({ n: s.n, note: (s.note || '').trim() }));
+
+      // 전체 사진 + 각 표시영역 확대 크롭 + 참고 사진을 모두 전송 (분석 정밀도 ↑)
+      const images = [{ label: '전체 불량 사진 (빨간 박스·번호 = 표시 영역)', dataUrl: photo }];
+      (Annotate.markerCrops(6) || []).forEach((c) => {
+        images.push({ label: '표시 영역 ' + c.n + ' 확대' + (c.note ? ' — ' + c.note : ''), dataUrl: c.dataUrl });
+      });
+      (Store.current().refPhotos || []).forEach((u, i) => {
+        images.push({ label: '참고 사진 ' + (i + 1), dataUrl: u });
+      });
+
       const label = aiBtn.textContent;
       aiBtn.disabled = true;
-      aiBtn.textContent = '📷 분석 중… (약 1분)';
+      aiBtn.textContent = '📷 분석 중… (1~2분)';
       try {
-        const { result } = await AI.analyze(photo, Store.current().fields || {}, markers);
+        const { result } = await AI.analyze(images, Store.current().fields || {}, markers);
         const n = Report.applyPhotoAnalysis(result);
         loadReport();
         toast(n ? 'AI 8D 작성 완료 — ' + n + '개 항목. 날짜·수량 등은 직접 확인해 채우세요.' : '분석 완료 — 반영할 결과가 없습니다.');

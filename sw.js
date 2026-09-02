@@ -1,5 +1,5 @@
 /* 품질 대책서 PWA · 서비스 워커 (오프라인 캐시) */
-const CACHE = 'qcr-v17';
+const CACHE = 'qcr-v18';
 const ASSETS = [
   './',
   './index.html',
