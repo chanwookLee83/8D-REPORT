@@ -47,7 +47,8 @@ input,select,textarea{font-family:inherit;font-size:14px;word-break:break-word;o
 .subtitle{margin:2px 0 0;font-size:11px;opacity:.8}
 .appbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .report-picker{
-  width:260px; min-width:220px; max-width:320px; padding:7px 10px; border-radius:9px; border:0;
+  width:clamp(320px, 46vw, 640px); min-width:280px; flex:1 1 auto;
+  padding:7px 10px; border-radius:9px; border:0;
   background:rgba(255,255,255,.15); color:#fff; font-size:12.5px;
 }
 .report-picker option{color:#1e2230}
@@ -389,6 +390,7 @@ details.d8 .grid{margin-top:4px}
   .report-doc{padding:22px 18px}
   .report-doc .two-col{grid-template-columns:1fr}
   .report-doc .d2-def,.report-doc .d2-isnot{grid-template-columns:1fr}
+  .report-picker{width:100%;flex-basis:100%}
   .tabs{top:64px}
 }
 
