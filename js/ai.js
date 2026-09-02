@@ -554,10 +554,14 @@
   const TRANSLATE_SYSTEM =
     '당신은 자동차 품질 8D 대책서 전문 번역가입니다. 한국어 대책서 내용을 고객 제출용 전문 영문으로 번역합니다. '
     + '자동차 8D / CAR 표준 용어를 사용하고, 종결형 평서문을 유지합니다("was reset to...", "confirmed", "100% containment applied"). '
-    + '"[확인]"은 "[TBD]"로 옮기고, 수치·단위·기호·고유명사(설비명·P/N·LOT)는 그대로 둡니다. 의역보다 정확·간결. '
-    + '입력 JSON과 완전히 동일한 키 구조로, 값만 영문으로 채운 JSON 객체 하나만 출력합니다. 코드펜스·설명 금지.';
+    + '"[확인]"은 "[TBD]"로 옮기고, 수치·단위·기호·P/N·LOT·차종 코드는 그대로 둡니다. '
+    + '인명은 국립국어원 로마자 표기법으로 옮깁니다(예: 이찬욱 → Lee Chan-wook, 이주형 → Lee Ju-hyung). '
+    + '회사명·지명·설비명은 통용 영문 표기 또는 로마자로 옮기되 호기·라인 번호는 유지합니다(예: 5호기 → Unit 5, 팔탄 → Paltan, 유라 → Yura). '
+    + '부서·직책은 영문으로 번역합니다(생산기술팀 → Production Engineering Team, 공정 엔지니어 → Process Engineer). '
+    + '모든 값을 빠짐없이 번역하고, 입력 JSON과 완전히 동일한 키·배열 구조로 값만 영문으로 채운 JSON 객체 하나만 출력합니다. 코드펜스·설명 금지.';
 
-  /* payload: { fields:{key:ko}, why:{occur:[],escape:[]}, fishbone:{problem, cats:{man:[{text,subs:[]}]}} } */
+  /* payload: { fields:{key:ko}, why:{occur:[],escape:[]},
+   *            fishbone:{problem, cats:{man:[{text,subs:[]}]}}, d1:[{name,dept,role}], d6:[{action,owner,result}] } */
   async function translate(payload) {
     if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
     if (!getKey()) throw new Error('API 키가 설정되지 않았습니다.');
@@ -566,8 +570,10 @@
       JSON.stringify(payload, null, 1),
       '',
       '## 출력',
-      '위와 동일한 키 구조의 JSON 하나. 값만 영문으로. why.occur / why.escape 는 배열 길이(6)와 순서 유지(빈 문자열도 그대로).',
-      'fishbone.cats 의 각 원인은 {"text": "...", "subs": ["..."]} 형태 유지, 배열 길이·순서 유지.',
+      '위와 동일한 키·배열 구조의 JSON 하나. 모든 값을 영문으로 (fields 의 회사·인명·설비·부서·역할 포함, 하나도 빠뜨리지 말 것).',
+      'why.occur / why.escape 는 배열 길이(6)·순서 유지(빈 문자열도 그대로).',
+      'fishbone.cats 각 원인은 {"text": "...", "subs": ["..."]} 형태·배열 길이·순서 유지.',
+      'd1 은 [{"name","dept","role"}], d6 은 [{"action","owner","result"}] 배열 길이·순서 유지.',
     ].join('\n');
     const out = await streamMessages([{ type: 'text', text: text }], TRANSLATE_SYSTEM, 16000);
     return extractJSON(out.text);

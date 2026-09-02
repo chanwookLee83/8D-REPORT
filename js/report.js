@@ -50,6 +50,29 @@
     if (lang === 'en') return esc(en);
     return esc(ko) + (en !== ko ? ' / ' + esc(en) : '');
   }
+  // 짧은 자유 텍스트 (이름·회사·설비 등) — report.i18n.fields 캐시, 한 줄 인라인
+  function fi(key) {
+    const ko = f(key).trim();
+    const en = String(enOf(key) || '').trim();
+    if (!ko && !en) return '';
+    if (lang === 'ko') return esc(ko);
+    if (lang === 'en') return esc(en || ko);
+    return esc(ko) + (en && en !== ko ? '<span class="doc-en-lbl"> / ' + esc(en) + '</span>' : '');
+  }
+  // 임의의 ko/en 문자열 쌍 (테이블 셀 등) — fi 와 동일 규칙
+  function tv(ko, en) {
+    ko = String(ko == null ? '' : ko).trim();
+    en = String(en == null ? '' : en).trim();
+    if (!ko && !en) return val('');
+    if (lang === 'ko') return nl(ko);
+    if (lang === 'en') return nl(en || ko);
+    return nl(ko) + (en && en !== ko ? '<span class="doc-en-lbl"> / ' + esc(en) + '</span>' : '');
+  }
+  // 여러 조각(fi 결과 HTML 또는 esc된 문자열)을 " / " 로 병합, 빈 값 제외
+  function joinParts(arr) {
+    const parts = arr.filter((s) => s && s.replace(/<[^>]*>/g, '').trim());
+    return parts.length ? parts.join(' / ') : val('');
+  }
 
   function f(k) {
     return (Store.current().fields || {})[k] || '';
@@ -111,7 +134,7 @@
     ].map(([lbl, v]) => {
       const s = String(v == null ? '' : v).trim();
       const num = s === '' ? '<span class="empty">—</span>' : esc(s) + ' EA';
-      return '<span class="qty-item"><b>' + lbl + '</b> ' + num + '</span>';
+      return '<span class="qty-item"><b>' + L(lbl) + '</b> ' + num + '</span>';
     });
     return '<span class="qty-list">' + items.join('<span class="qty-sep">/</span>') + '</span>';
   }
@@ -139,7 +162,9 @@
       h += '<p class="doc-note no-print">※ 서술 내용의 영문 번역이 아직 없습니다. «🌐 영문 번역(AI)» 버튼을 누르면 채워집니다. (라벨·제목은 즉시 번역됨)</p>';
     }
     const ph = (ko) => (lang === 'ko' ? ko : T(ko));
-    h += '<p class="doc-sub">' + val(f('customer'), ph('고객사')) + ' &nbsp;|&nbsp; ' + val(f('partName'), ph('부품명')) + ' &nbsp;|&nbsp; ' + fv('defectType', ph('불량 유형')) + '</p>';
+    const subCust = f('customer').trim() ? fi('customer') : '<span class="empty">' + esc(ph('고객사')) + '</span>';
+    const subPart = f('partName').trim() ? esc(f('partName')) : '<span class="empty">' + esc(ph('부품명')) + '</span>';
+    h += '<p class="doc-sub">' + subCust + ' &nbsp;|&nbsp; ' + subPart + ' &nbsp;|&nbsp; ' + fv('defectType', ph('불량 유형')) + '</p>';
 
     // 문서/제품 정보
     h += sectionHead('INFO', '문서 및 제품 정보');
@@ -148,15 +173,15 @@
       ['문서번호', val(f('docNo'))],
       ['개정(Rev.)', val(f('rev'))],
       ['작성일', val(f('writeDate'))],
-      ['작성자 / 부서', val([f('author'), f('dept')].filter(Boolean).join(' / '))],
-      ['승인자', val(f('approver'))],
+      ['작성자 / 부서', joinParts([fi('author'), fi('dept')])],
+      ['승인자', fi('approver')],
     ]);
     h += rows([
-      ['고객사', val(f('customer'))],
-      ['고객 공장/라인', val(f('customerPlant'))],
+      ['고객사', fi('customer')],
+      ['고객 공장/라인', fi('customerPlant')],
       ['부품명 / P/N', val([f('partName'), f('partNo')].filter(Boolean).join(' / '))],
-      ['적용 차종', val(f('vehicle'))],
-      ['협력사 / 공정', val(f('supplier'))],
+      ['적용 차종', fi('vehicle')],
+      ['협력사 / 공정', fi('supplier')],
     ]);
     h += '</div>';
 
@@ -164,8 +189,8 @@
     h += sectionHead('개요', '불량 개요');
     h += rows([
       ['불량 유형', fv('defectType')],
-      ['불량 등급', val(f('defectGrade'))],
-      ['발생 공정', val(f('defectProcess'))],
+      ['불량 등급', ev('defectGrade')],
+      ['발생 공정', fi('defectProcess')],
       ['수량 현황', qtyList()],
       ['납품 LOT / 생산일자', val(f('lotNo'))],
       ['발생일 / 접수일', val([f('occurDate'), f('receiveDate')].filter(Boolean).join(' / '))],
@@ -188,19 +213,23 @@
     h += rows([
       ['증상 인식 / 초기 상황', fv('d0_symptom')],
       ['비상 대응 조치', fv('d0_era')],
-      ['조치일 / 담당', val([f('d0_date'), f('d0_owner')].filter(Boolean).join(' / '))],
+      ['조치일 / 담당', joinParts([f('d0_date') ? esc(f('d0_date')) : '', fi('d0_owner')])],
       ['ERA 유효성', ev('d0_verify')],
     ], true);
 
     // D1
     h += sectionHead('D1', '팀 구성');
     h += rows([
-      ['챔피언 / 후원자', val(f('d1_champion'))],
-      ['팀 리더', val(f('d1_leader'))],
+      ['챔피언 / 후원자', fi('d1_champion')],
+      ['팀 리더', fi('d1_leader')],
     ], true);
     if ((r.d1 || []).length) {
+      const d1En = (r.i18n && Array.isArray(r.i18n.d1)) ? r.i18n.d1 : [];
       h += '<table><tr><th style="width:auto">' + L('이름') + '</th><th>' + L('부서') + '</th><th>' + L('역할 / 담당') + '</th></tr>' +
-        r.d1.map((m) => '<tr><td>' + val(m.name) + '</td><td>' + val(m.dept) + '</td><td>' + val(m.role) + '</td></tr>').join('') +
+        r.d1.map((m, i) => {
+          const e = d1En[i] || {};
+          return '<tr><td>' + tv(m.name, e.name) + '</td><td>' + tv(m.dept, e.dept) + '</td><td>' + tv(m.role, e.role) + '</td></tr>';
+        }).join('') +
         '</table>';
     }
 
@@ -236,7 +265,7 @@
     h += sectionHead('D3', '봉쇄(임시) 조치 — ICA');
     h += rows([
       ['임시 조치 내용', fv('d3_action')],
-      ['실시일 / 담당', val([f('d3_date'), f('d3_owner')].filter(Boolean).join(' / '))],
+      ['실시일 / 담당', joinParts([f('d3_date') ? esc(f('d3_date')) : '', fi('d3_owner')])],
       ['선별 수량 / 결과', fv('d3_result')],
       ['유효성 검증', fv('d3_verify')],
     ], true);
@@ -270,8 +299,12 @@
     // D6
     h += sectionHead('D6', '시정 조치 실행 & 검증');
     if ((r.d6 || []).length) {
+      const d6En = (r.i18n && Array.isArray(r.i18n.d6)) ? r.i18n.d6 : [];
       h += '<table><tr><th style="width:auto">' + L('조치 내용') + '</th><th>' + L('담당') + '</th><th>' + L('완료예정') + '</th><th>' + L('완료일') + '</th><th>' + L('검증 결과') + '</th></tr>' +
-        r.d6.map((x) => '<tr><td>' + val(x.action) + '</td><td>' + val(x.owner) + '</td><td>' + val(x.due) + '</td><td>' + val(x.done) + '</td><td>' + val(x.result) + '</td></tr>').join('') +
+        r.d6.map((x, i) => {
+          const e = d6En[i] || {};
+          return '<tr><td>' + tv(x.action, e.action) + '</td><td>' + tv(x.owner, e.owner) + '</td><td>' + val(x.due) + '</td><td>' + val(x.done) + '</td><td>' + tv(x.result, e.result) + '</td></tr>';
+        }).join('') +
         '</table>';
     }
     h += rows([
@@ -292,7 +325,7 @@
     h += sectionHead('D8', '종결 & 팀 노고 치하');
     h += rows([
       ['종결 코멘트 / 팀 노고', fv('d8_closing')],
-      ['종결 승인자 / 종결일', val([f('d8_approver'), f('d8_date')].filter(Boolean).join(' / '))],
+      ['종결 승인자 / 종결일', joinParts([fi('d8_approver'), f('d8_date') ? esc(f('d8_date')) : ''])],
       ['고객 승인 여부', ev('d8_customerOk')],
     ], true);
 

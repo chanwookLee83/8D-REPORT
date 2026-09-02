@@ -418,12 +418,18 @@
     }
     function collectTranslatable() {
       const r = Store.current();
-      const NARR = ['defectType', 'defectDesc', 'd0_symptom', 'd0_era',
+      // 서술 + 짧은 자유 텍스트(회사·인명·설비·부서·역할) 모두 포함
+      const KEYS = ['defectType', 'defectDesc', 'defectProcess',
+        'customer', 'customerPlant', 'vehicle', 'supplier', 'author', 'dept', 'approver',
+        'd0_symptom', 'd0_era', 'd0_owner',
         'd2_what', 'd2_where', 'd2_when', 'd2_who', 'd2_how', 'd2_howmany', 'd2_why', 'd2_is', 'd2_isnot',
-        'd3_action', 'd3_result', 'd3_verify', 'd4_occur', 'd4_escape', 'd4_verify',
-        'd5_occur', 'd5_escape', 'd5_risk', 'd5_basis', 'd6_effect', 'd7_lesson', 'd7_std', 'd8_closing'];
+        'd3_action', 'd3_result', 'd3_verify', 'd3_owner',
+        'd4_occur', 'd4_escape', 'd4_verify',
+        'd5_occur', 'd5_escape', 'd5_risk', 'd5_basis',
+        'd6_effect', 'd7_lesson', 'd7_std', 'd8_closing', 'd8_approver',
+        'd1_champion', 'd1_leader'];
       const fields = {};
-      NARR.forEach((k) => { const v = ((r.fields || {})[k] || '').trim(); if (v) fields[k] = v; });
+      KEYS.forEach((k) => { const v = ((r.fields || {})[k] || '').trim(); if (v) fields[k] = v; });
       const why = {
         occur: ((r.why || {}).occur || []).map((x) => x || ''),
         escape: ((r.why || {}).escape || []).map((x) => x || ''),
@@ -434,7 +440,13 @@
         const list = (fbc[k] || []).filter((c) => (c.text || '').trim() || (c.subs || []).some(Boolean));
         if (list.length) cats[k] = list.map((c) => ({ text: c.text || '', subs: (c.subs || []).filter(Boolean) }));
       });
-      return { fields: fields, why: why, fishbone: { problem: (r.fishbone || {}).problem || '', cats: cats } };
+      const d1 = (r.d1 || []).map((m) => ({ name: m.name || '', dept: m.dept || '', role: m.role || '' }));
+      const d6 = (r.d6 || []).map((x) => ({ action: x.action || '', owner: x.owner || '', result: x.result || '' }));
+      return {
+        fields: fields, why: why,
+        fishbone: { problem: (r.fishbone || {}).problem || '', cats: cats },
+        d1: d1, d6: d6,
+      };
     }
     if (trBtn) {
       trBtn.addEventListener('click', async () => {
@@ -454,6 +466,8 @@
             fields: (en && en.fields) || {},
             why: (en && en.why) || {},
             fishbone: (en && en.fishbone) || {},
+            d1: (en && Array.isArray(en.d1)) ? en.d1 : [],
+            d6: (en && Array.isArray(en.d6)) ? en.d6 : [],
             updatedAt: Date.now(),
           };
           Store.touch();

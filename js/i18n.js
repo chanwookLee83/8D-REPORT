@@ -129,6 +129,9 @@
     // 짧은 enum 값
     '확인됨': 'Confirmed', '진행중': 'In progress', '승인': 'Approved', '미승인': 'Not approved',
     '미작성': 'not written',
+    'Critical (안전/법규)': 'Critical (safety / regulation)',
+    'Major (기능)': 'Major (function)',
+    'Minor (외관)': 'Minor (appearance)',
   };
 
   function t(ko) {
