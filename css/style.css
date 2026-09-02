@@ -357,6 +357,10 @@ details.d8 .grid{margin-top:4px}
 .report-doc .why-box{font-size:12px;background:#f7f8fa;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0}
 .report-doc .why-box .step{display:block;padding:2px 0}
 .report-doc .empty{color:#9aa0ae;font-style:italic}
+.report-doc .qty-list{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
+.report-doc .qty-item{white-space:nowrap}
+.report-doc .qty-item b{color:var(--ink-soft);font-weight:600;margin-right:3px}
+.report-doc .qty-sep{color:#c4c7d0}
 
 /* ---- D2 문제 정의 ---- */
 .report-doc .d2-def{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}

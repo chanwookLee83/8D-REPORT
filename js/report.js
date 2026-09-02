@@ -53,6 +53,20 @@
     return steps ? '<div class="why-box">' + steps + '</div>' : '<p class="empty">미작성</p>';
   }
 
+  function qtyList() {
+    const items = [
+      ['불량 수량', f('qtyDefect')],
+      ['고객 재고', f('qtyCustomerStock')],
+      ['사내 재고', f('qtyInHouseStock')],
+      ['공정 재고(WIP)', f('qtyWip')],
+    ].map(([lbl, v]) => {
+      const s = String(v == null ? '' : v).trim();
+      const num = s === '' ? '<span class="empty">—</span>' : esc(s) + ' EA';
+      return '<span class="qty-item"><b>' + lbl + '</b> ' + num + '</span>';
+    });
+    return '<span class="qty-list">' + items.join('<span class="qty-sep">/</span>') + '</span>';
+  }
+
   function markerTable() {
     const shapes = (Store.current().photo.shapes || []).filter((s) => s.type !== 'pen');
     if (!shapes.length) return '';
@@ -99,8 +113,7 @@
       ['불량 유형', val(f('defectType'))],
       ['불량 등급', val(f('defectGrade'))],
       ['발생 공정', val(f('defectProcess'))],
-      ['불량 수량 / 고객재고 / 사내재고 / WIP',
-        val([f('qtyDefect'), f('qtyCustomerStock'), f('qtyInHouseStock'), f('qtyWip')].map((x) => (x === '' ? '-' : x)).join(' / '))],
+      ['수량 현황', qtyList()],
       ['납품 LOT / 생산일자', val(f('lotNo'))],
       ['발생일 / 접수일', val([f('occurDate'), f('receiveDate')].filter(Boolean).join(' / '))],
       ['초도(D+3) / 최종 회신', val([f('interimDue'), f('finalDue')].filter(Boolean).join(' / '))],
