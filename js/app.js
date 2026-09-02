@@ -90,16 +90,18 @@
       WHY_LABELS.forEach((lbl, i) => {
         const row = document.createElement('div');
         row.className = 'why-row' + (i === 5 ? ' root' : '');
-        row.innerHTML = '<span class="lbl">' + lbl + '</span><input>';
-        const inp = row.querySelector('input');
+        row.innerHTML = '<span class="lbl">' + lbl + '</span><textarea rows="1"></textarea>';
+        const inp = row.querySelector('textarea');
         inp.value = arr[i] || '';
         inp.placeholder = i === 5 ? '검증된 근본 원인' : '왜? …';
         inp.addEventListener('input', () => {
           arr[i] = inp.value;
+          autoGrow(inp);
           Store.touch();
           afterChange();
         });
         box.appendChild(row);
+        autoGrow(inp);
       });
     });
   }

@@ -299,10 +299,16 @@ details.d8 .grid{margin-top:4px}
 .mini-table .del{border:0;background:#f1f2f6;border-radius:7px;padding:6px 8px;font-size:11px;color:var(--ink-soft)}
 
 .why-chain{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
-.why-row{display:flex;align-items:center;gap:8px}
-.why-row .lbl{flex:none;font-size:11px;font-weight:700;color:var(--ink-soft);width:56px}
-.why-row input{flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fcfcfd}
-.why-row.root input{border-color:var(--accent);background:var(--accent-soft)}
+.why-row{display:flex;align-items:flex-start;gap:8px}
+.why-row .lbl{flex:none;font-size:11px;font-weight:700;color:var(--ink-soft);width:56px;padding-top:10px}
+.why-row textarea{
+  flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fcfcfd;
+  font:inherit;font-size:12.5px;line-height:1.5;color:var(--ink);
+  resize:none;overflow:hidden;min-height:37px;
+  overflow-wrap:anywhere;word-break:break-word;
+}
+.why-row textarea:focus{border-color:var(--accent);outline:none}
+.why-row.root textarea{border-color:var(--accent);background:var(--accent-soft)}
 
 /* ---- 항목별 AI 보강 버튼 ---- */
 .lbl-row{display:flex;justify-content:space-between;align-items:center;gap:10px;min-width:0}
