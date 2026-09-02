@@ -5,7 +5,11 @@
 (function (global) {
   const KEY_LS = 'qcr.anthropicKey.v1';
   const MODEL_LS = 'qcr.aiModel.v1';
+  const EFFORT_LS = 'qcr.aiEffort.v1';
+  const TWOSTAGE_LS = 'qcr.aiTwoStage.v1';
   const DEFAULT_MODEL = 'claude-opus-5'; // 콘솔에서 AI.setModel('claude-sonnet-5') 등으로 변경 가능
+  const DEFAULT_EFFORT = 'high';
+  const EFFORTS = ['medium', 'high', 'xhigh'];
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
   function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
@@ -17,6 +21,10 @@
   function setKey(v) { lsSet(KEY_LS, v); }
   function getModel() { return lsGet(MODEL_LS) || DEFAULT_MODEL; }
   function setModel(v) { lsSet(MODEL_LS, v); }
+  function getEffort() { const v = lsGet(EFFORT_LS); return EFFORTS.indexOf(v) >= 0 ? v : DEFAULT_EFFORT; }
+  function setEffort(v) { lsSet(EFFORT_LS, EFFORTS.indexOf(v) >= 0 ? v : ''); }
+  function getTwoStage() { return lsGet(TWOSTAGE_LS) === '1'; }
+  function setTwoStage(on) { lsSet(TWOSTAGE_LS, on ? '1' : ''); }
   function hasKey() { return !!getKey(); }
   function isOnline() { return navigator.onLine !== false; }
   function available() { return isOnline() && hasKey(); }
@@ -121,7 +129,7 @@
     notes: '분석 한계 / 실측·성형조건 데이터로 확인이 필요한 사항 (간결한 목록형)',
   };
 
-  function buildPrompt(fields, markers, imgCount) {
+  function buildPrompt(fields, markers, imgCount, observations) {
     const ctx = [
       ['고객사', fields.customer],
       ['부품명', fields.partName],
@@ -138,6 +146,21 @@
       ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
       : '- (표시 영역 없음)';
 
+    const aux = [
+      ['부품 유형(지정)', fields.aux_partType],
+      ['발생 추세', fields.aux_trend],
+      ['금형·호기/캐비티·설비', fields.aux_equip],
+      ['재료 등급·로트·색상', fields.aux_material],
+      ['성형/조립 조건 실측', fields.aux_condition],
+      ['최근 4M 변경점', fields.aux_change],
+      ['유사 과거 이력·재발 여부', fields.aux_history],
+      ['기타 특이사항', fields.aux_extra],
+      ['되묻기 답변', fields.aux_answers],
+    ]
+      .filter(([, v]) => (v == null ? '' : String(v)).trim())
+      .map(([k, v]) => '- ' + k + ': ' + String(v).trim())
+      .join('\n');
+
     return [
       '## 기본 정보',
       ctx,
@@ -145,6 +168,13 @@
       '## 표시 영역 — 작업자가 사진에 직접 표기 (확정 사실)',
       mk,
       '',
+    ].concat(
+      aux ? ['## 보조 정보 — 작성자 제공 (사실로 신뢰. 근본원인·대책을 이 값에 맞춰 구체화)', aux, ''] : []
+    ).concat(
+      observations && observations.trim()
+        ? ['## 1차 비전 관찰 결과 (동일 사진을 먼저 관찰한 결과. 이 관찰 사실을 근거로 8D 전개)', observations.trim(), '']
+        : []
+    ).concat([
       DOMAIN,
       '',
       '## 요청',
@@ -160,7 +190,7 @@
       '- fishbone 은 6M(man·machine·material·method·measure·env) 카테고리별 원인 2~4개.',
       '- regions.box 는 좌상단 (0,0) ~ 우하단 (1,1) 정규화 [x, y, w, h]. 표시 영역이 이미 있거나 표시할 것이 없으면 빈 배열.',
       '- 날짜·수량·LOT·인명은 지어내지 말고 해당 자리에 "[확인]" 표기.',
-    ].join('\n');
+    ]).join('\n');
   }
 
   function extractJSON(text) {
@@ -177,12 +207,8 @@
     return im ? { type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } } : null;
   }
 
-  /* images: [{label, dataUrl}, ...] 또는 하위호환용 단일 dataURL 문자열 */
-  async function analyze(images, fields, markers) {
-    if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
-    const key = getKey();
-    if (!key) throw new Error('API 키가 설정되지 않았습니다.');
-
+  /* images: [{label, dataUrl}, ...] 또는 하위호환용 단일 dataURL 문자열 → 라벨+이미지 블록 배열 */
+  function buildImageContent(images) {
     const list = Array.isArray(images) ? images : [{ label: '전체 불량 사진', dataUrl: images }];
     const content = [];
     let imgCount = 0;
@@ -193,17 +219,22 @@
       content.push({ type: 'text', text: '[이미지 ' + imgCount + '] ' + (it.label || '사진') });
       content.push(block);
     });
-    if (!imgCount) throw new Error('불량 사진을 먼저 업로드하세요.');
-    content.push({ type: 'text', text: buildPrompt(fields || {}, markers || [], imgCount) });
+    return { content: content, imgCount: imgCount };
+  }
 
+  /* 저수준: 한 번의 messages 요청을 스트리밍으로 보내고 누적 텍스트를 돌려준다.
+   * (thinking_delta 는 무시하고 text_delta 만 누적) */
+  async function streamMessages(userContent, sysPrompt, maxTokens) {
+    const key = getKey();
+    if (!key) throw new Error('API 키가 설정되지 않았습니다.');
     const body = {
       model: getModel(),
-      max_tokens: 32000,
+      max_tokens: maxTokens || 32000,
       stream: true,
-      system: SYSTEM,
+      system: sysPrompt,
       thinking: { type: 'adaptive' },
-      output_config: { effort: 'high' },
-      messages: [{ role: 'user', content: content }],
+      output_config: { effort: getEffort() },
+      messages: [{ role: 'user', content: userContent }],
     };
 
     let res;
@@ -231,7 +262,6 @@
       throw new Error('API 오류 (' + res.status + ')' + (msg ? ': ' + msg : ''));
     }
 
-    // SSE 스트림 파싱 (thinking_delta 는 무시하고 text 만 누적)
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '', text = '', stopReason = null, usage = null, model = null;
@@ -260,8 +290,122 @@
 
     if (stopReason === 'refusal') throw new Error('모델이 응답을 거부했습니다.');
     if (!text.trim()) throw new Error('응답에 텍스트가 없습니다.');
-    return { result: extractJSON(text), usage: usage, model: model };
+    return { text: text, stopReason: stopReason, usage: usage, model: model };
   }
 
-  global.AI = { hasKey, getKey, setKey, getModel, setModel, available, isOnline, analyze, DEFAULT_MODEL };
+  /* ── 1차: 비전 관찰만 (8D 전개 없이 사진에서 보이는 사실만) ── */
+  const OBSERVE_SYSTEM =
+    '당신은 자동차 사출·조립 부품 품질 엔지니어입니다. 지금은 원인 분석·대책을 하지 않고, 첨부 사진에서 관찰되는 사실만 정리합니다. ' +
+    '전체 사진과 표시 영역 확대 크롭을 모두 살펴, 불량의 형태·위치·방향·크기·표면 상태·주변 형상(게이트/파팅라인/리브/체결부/단자 등)과의 관계를 구체적으로 기술합니다. ' +
+    '추정에는 "~로 추정됨"을 붙이고, 확실하지 않으면 불확실하다고 적습니다. 8D 항목·대책·일반론은 쓰지 마세요. 한국어 불릿 목록으로만.';
+
+  function observePrompt(fields, markers, imgCount) {
+    const mk = (markers && markers.length)
+      ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
+      : '- (표시 영역 없음)';
+    return [
+      '## 정보',
+      '- 부품명: ' + (fields.partName || '(미입력)'),
+      '- 불량 유형(입력값): ' + (fields.defectType || '(미입력)'),
+      '- 발생 공정: ' + (fields.defectProcess || '(미입력)'),
+      '',
+      '## 표시 영역 (작업자 표기)',
+      mk,
+      '',
+      '## 요청',
+      '첨부한 ' + imgCount + '장의 이미지를 관찰해, 다음을 불릿으로 정리하세요. (8D·대책 금지)',
+      '- 부품 유형 판단: 사출 성형품 / 조립품 / 복합 중 무엇으로 보이는지와 근거',
+      '- 표시 영역별 관찰: 불량 형태(크랙·변형·미성형·이물·버·단차 등), 위치·방향·범위, 표면 상태',
+      '- 주변 형상과의 관계 (게이트/웰드라인/파팅면/리브/보스/체결부/단자/커넥터 등)',
+      '- 사진으로는 알 수 없어 실측·이력 확인이 필요한 항목',
+    ].join('\n');
+  }
+
+  /* ── 되묻기: 근본원인 확정에 필요한 질문 3~6개 ── */
+  const QUESTION_SYSTEM =
+    '당신은 자동차 사출·조립 부품 품질 엔지니어입니다. 첨부 사진과 정보를 보고, 근본원인(D4)·재발방지(D5)를 정확히 확정하기 위해 ' +
+    '작성자에게 물어야 할 핵심 질문만 3~6개 뽑습니다. 사진·입력값으로 이미 알 수 있는 것은 묻지 않습니다. ' +
+    '각 질문은 한 문장, 구체적으로 (예: "3호기 성형조건 중 최근 변경된 항목과 변경 전후 값은?"). ' +
+    'JSON 객체 하나만 출력: {"questions": ["...", "..."]}. 다른 텍스트·코드펜스 금지.';
+
+  function parseQuestions(text) {
+    const obj = extractJSON(text);
+    const arr = obj && Array.isArray(obj.questions) ? obj.questions : [];
+    return arr.map((q) => String(q || '').trim()).filter(Boolean).slice(0, 8);
+  }
+
+  function questionPrompt(fields, markers, imgCount) {
+    const mk = (markers && markers.length)
+      ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
+      : '- (표시 영역 없음)';
+    const aux = [
+      ['부품 유형(지정)', fields.aux_partType], ['발생 추세', fields.aux_trend],
+      ['금형·호기/캐비티·설비', fields.aux_equip], ['재료', fields.aux_material],
+      ['조건 실측', fields.aux_condition], ['4M 변경점', fields.aux_change],
+      ['과거 이력', fields.aux_history], ['기타', fields.aux_extra],
+    ].filter(([, v]) => (v == null ? '' : String(v)).trim())
+      .map(([k, v]) => '- ' + k + ': ' + String(v).trim()).join('\n');
+    return [
+      '## 정보',
+      '- 부품명: ' + (fields.partName || '(미입력)'),
+      '- 불량 유형(입력값): ' + (fields.defectType || '(미입력)'),
+      '- 발생 공정: ' + (fields.defectProcess || '(미입력)'),
+      '- 불량 현상 상세: ' + (fields.defectDesc || '(미입력)'),
+      '',
+      '## 표시 영역 (작업자 표기)',
+      mk,
+      '',
+      aux ? '## 이미 제공된 보조 정보 (이 내용은 다시 묻지 마세요)\n' + aux + '\n' : '',
+      '## 요청',
+      '첨부한 ' + imgCount + '장의 이미지와 위 정보를 보고, 근본원인(D4)·재발방지(D5)를 정확히 확정하기 위해 작성자에게 물어야 할 핵심 질문만 3~6개 뽑아 JSON 으로 출력하세요: {"questions": ["...", "..."]}',
+    ].join('\n');
+  }
+
+  /* 근본원인 확정에 필요한 질문 목록을 받아온다 */
+  async function askQuestions(images, fields, markers) {
+    if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
+    const built = buildImageContent(images);
+    if (!built.imgCount) throw new Error('불량 사진을 먼저 업로드하세요.');
+    const content = built.content.concat([
+      { type: 'text', text: questionPrompt(fields || {}, markers || [], built.imgCount) },
+    ]);
+    const out = await streamMessages(content, QUESTION_SYSTEM, 4000);
+    return { questions: parseQuestions(out.text), usage: out.usage, model: out.model };
+  }
+
+  /* images: [{label, dataUrl}, ...] 또는 단일 dataURL 문자열
+   * opts: { twoStage:boolean, onStage:fn(label) } */
+  async function analyze(images, fields, markers, opts) {
+    if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
+    if (!getKey()) throw new Error('API 키가 설정되지 않았습니다.');
+    opts = opts || {};
+    const f = fields || {};
+    const mk = markers || [];
+    const built = buildImageContent(images);
+    if (!built.imgCount) throw new Error('불량 사진을 먼저 업로드하세요.');
+
+    const twoStage = opts.twoStage != null ? opts.twoStage : getTwoStage();
+    let observations = '';
+    if (twoStage) {
+      if (opts.onStage) opts.onStage('1/2 사진 관찰 중…');
+      const obs = await streamMessages(
+        built.content.concat([{ type: 'text', text: observePrompt(f, mk, built.imgCount) }]),
+        OBSERVE_SYSTEM,
+        8000
+      );
+      observations = obs.text || '';
+    }
+
+    if (opts.onStage) opts.onStage(twoStage ? '2/2 8D 작성 중…' : '8D 작성 중…');
+    const content = built.content.concat([
+      { type: 'text', text: buildPrompt(f, mk, built.imgCount, observations) },
+    ]);
+    const out = await streamMessages(content, SYSTEM, 32000);
+    return { result: extractJSON(out.text), observations: observations, usage: out.usage, model: out.model };
+  }
+
+  global.AI = {
+    hasKey, getKey, setKey, getModel, setModel, getEffort, setEffort, getTwoStage, setTwoStage,
+    available, isOnline, analyze, askQuestions, EFFORTS, DEFAULT_MODEL, DEFAULT_EFFORT,
+  };
 })(window);

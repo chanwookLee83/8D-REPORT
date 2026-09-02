@@ -332,8 +332,17 @@ details.d8 .grid{margin-top:4px}
 .ai-settings[open] > summary::after{transform:rotate(90deg)}
 .ai-settings-body{padding:0 14px 14px;display:flex;flex-direction:column;gap:10px}
 .ai-settings-body label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--ink-soft)}
-.ai-settings-body input{border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:13px;background:#fcfcfd;color:var(--ink);font-family:inherit}
+.ai-settings-body input,.ai-settings-body select,.ai-settings-body textarea{border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:13px;background:#fcfcfd;color:var(--ink);font-family:inherit}
+.ai-settings-body textarea{resize:vertical;line-height:1.5}
+.ai-aux-hint{font-weight:500;color:#9aa0ae;font-size:11px}
 .ai-settings-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ai-check{flex-direction:row!important;align-items:flex-start;gap:8px!important;font-weight:500!important;line-height:1.45}
+.ai-check input{flex:none;margin-top:1px}
+.ai-qbox{border:1px solid var(--accent);border-radius:12px;background:var(--accent-soft);padding:14px 16px;margin-bottom:16px}
+.ai-qbox h3{font-size:13px;margin:0 0 8px;color:var(--accent)}
+.ai-qbox ol{margin:0 0 12px;padding-left:20px;font-size:12.5px;line-height:1.6}
+.ai-qbox label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:10px}
+.ai-qbox textarea{border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:13px;background:#fff;color:var(--ink);font-family:inherit;resize:vertical;line-height:1.5}
 .report-doc{
   background:#fff;border:1px solid var(--line);border-radius:12px;
   box-shadow:var(--shadow);padding:34px 38px;
