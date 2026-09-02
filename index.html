@@ -296,8 +296,8 @@
     <details class="d8 card">
       <summary><span class="d8-tag">D4</span> 근본 원인 분석 (Root Cause)</summary>
       <div class="grid">
-        <label class="col-3">발생 원인 (Occurrence)<textarea data-field="d4_occur" rows="2"></textarea></label>
-        <label class="col-3">유출 원인 (Detection)<textarea data-field="d4_escape" rows="2"></textarea></label>
+        <label class="col-3"><span class="lbl-row">발생 원인 (Occurrence)<button type="button" class="ai-mini" data-ai-assist="why_occur">✦ AI 5-Why 전개</button></span><textarea data-field="d4_occur" rows="2" placeholder="발생 원인을 한 줄이라도 적으면 AI가 이를 베이스로 5-Why를 전개합니다"></textarea></label>
+        <label class="col-3"><span class="lbl-row">유출 원인 (Detection)<button type="button" class="ai-mini" data-ai-assist="why_escape">✦ AI 5-Why 전개</button></span><textarea data-field="d4_escape" rows="2" placeholder="유출(검출 실패) 원인을 적으면 AI가 이를 베이스로 5-Why를 전개합니다"></textarea></label>
       </div>
 
       <h3 class="sub">5-Why 분석 — 발생 원인</h3>
@@ -314,11 +314,12 @@
     <details class="d8 card">
       <summary><span class="d8-tag">D5</span> 영구 시정 조치 선정 (PCA)</summary>
       <div class="grid">
-        <label class="col-3">발생 방지 대책<textarea data-field="d5_occur" rows="2"></textarea></label>
-        <label class="col-3">유출 방지 대책<textarea data-field="d5_escape" rows="2"></textarea></label>
-        <label class="col-3">부작용 / 위험성 검토<textarea data-field="d5_risk" rows="2"></textarea></label>
-        <label class="col-3">선정 근거 (대안 비교)<textarea data-field="d5_basis" rows="2"></textarea></label>
+        <label class="col-3"><span class="lbl-row">발생 방지 대책<button type="button" class="ai-mini" data-ai-assist="d5_occur">✦ AI 보강</button></span><textarea data-field="d5_occur" rows="2"></textarea></label>
+        <label class="col-3"><span class="lbl-row">유출 방지 대책<button type="button" class="ai-mini" data-ai-assist="d5_escape">✦ AI 보강</button></span><textarea data-field="d5_escape" rows="2"></textarea></label>
+        <label class="col-3"><span class="lbl-row">부작용 / 위험성 검토<button type="button" class="ai-mini" data-ai-assist="d5_risk">✦ AI 보강</button></span><textarea data-field="d5_risk" rows="2"></textarea></label>
+        <label class="col-3"><span class="lbl-row">선정 근거 (대안 비교)<button type="button" class="ai-mini" data-ai-assist="d5_basis">✦ AI 보강</button></span><textarea data-field="d5_basis" rows="2"></textarea></label>
       </div>
+      <p class="hint">✦ AI 버튼: 작성자가 적은 내용을 베이스로 해당 항목만 보강합니다. 온라인 + API 키 필요. 기존 내용은 덮어씁니다.</p>
     </details>
 
     <details class="d8 card">

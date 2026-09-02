@@ -207,6 +207,83 @@
     saveStatus.classList.remove('dirty');
   }
 
+  /* ---------- AI 공통 헬퍼 ---------- */
+  function aiPreflight() {
+    if (!AI.isOnline()) { toast('오프라인 상태입니다. «✍ 템플릿 작성»을 사용하세요.'); return false; }
+    if (!AI.hasKey()) {
+      const s = $('#aiSettings'); if (s) s.open = true;
+      const k = $('#aiKeyInput'); if (k) k.focus();
+      toast('먼저 «🔑 AI 사진 분석 설정»에서 API 키를 입력·저장하세요');
+      return false;
+    }
+    if (!Annotate.composite()) { toast('«불량 사진» 탭에서 사진을 먼저 업로드하세요'); return false; }
+    return true;
+  }
+
+  function aiCollectMarkers() {
+    return (Store.current().photo.shapes || [])
+      .filter((s) => s.type !== 'pen' && s.n)
+      .map((s) => ({ n: s.n, note: (s.note || '').trim() }));
+  }
+
+  // 전체 사진 + 각 표시영역 확대 크롭 + 참고 사진
+  function aiCollectImages() {
+    const images = [{ label: '전체 불량 사진 (빨간 박스·번호 = 표시 영역)', dataUrl: Annotate.composite() }];
+    (Annotate.markerCrops(6) || []).forEach((c) => {
+      images.push({ label: '표시 영역 ' + c.n + ' 확대' + (c.note ? ' — ' + c.note : ''), dataUrl: c.dataUrl });
+    });
+    (Store.current().refPhotos || []).forEach((u, i) => {
+      images.push({ label: '참고 사진 ' + (i + 1), dataUrl: u });
+    });
+    return images;
+  }
+
+  /* ---------- 항목별 AI 보강 (D4 5-Why / D5 대책) ---------- */
+  function initAiAssist() {
+    $$('[data-ai-assist]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!aiPreflight()) return;
+        const kind = btn.dataset.aiAssist;
+        const isWhy = kind === 'why_occur' || kind === 'why_escape';
+        const msg = isWhy
+          ? '작성한 원인을 베이스로 AI가 5-Why를 전개합니다.\n해당 5-Why 체인의 기존 내용은 덮어써집니다. 계속할까요?'
+          : '작성한 내용을 베이스로 AI가 이 항목을 보강합니다.\n기존 내용은 덮어써집니다. 계속할까요?';
+        if (!confirm(msg)) return;
+        const label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '✦ 분석 중…';
+        try {
+          const out = await AI.assist(kind, {
+            fields: Store.current().fields || {},
+            why: Store.current().why || { occur: [], escape: [] },
+            markers: aiCollectMarkers(),
+            images: isWhy ? aiCollectImages() : [{ label: '전체 불량 사진', dataUrl: Annotate.composite() }],
+          });
+          if (isWhy) {
+            const ch = kind === 'why_occur' ? 'occur' : 'escape';
+            Store.current().why[ch] = out.why;
+            Store.touch();
+            renderWhy();
+            afterChange();
+            toast('5-Why 전개 완료 — 내용을 확인·수정하세요');
+          } else {
+            Store.current().fields[kind] = out.text;
+            Store.touch();
+            const ta = $('[data-field="' + kind + '"]');
+            if (ta) { ta.value = out.text; autoGrow(ta); }
+            afterChange();
+            toast('보강 완료 — 내용을 확인·수정하세요');
+          }
+        } catch (e) {
+          toast('실패: ' + (e && e.message ? e.message : e));
+        } finally {
+          btn.disabled = false;
+          btn.textContent = label;
+        }
+      });
+    });
+  }
+
   /* ---------- 메뉴 / 신규 / 백업 ---------- */
   function initMenu() {
     $('#reportPicker').addEventListener('change', (e) => {
@@ -262,37 +339,6 @@
     const aiClarifyBtn = $('#aiClarifyBtn');
     const qBox = $('#aiQuestionBox');
 
-    // AI 분석 사전 점검: 통과하면 true
-    function aiPreflight() {
-      if (!AI.isOnline()) { toast('오프라인 상태입니다. «✍ 템플릿 작성»을 사용하세요.'); return false; }
-      if (!AI.hasKey()) {
-        if (aiSettings) aiSettings.open = true;
-        if (aiKeyInput) aiKeyInput.focus();
-        toast('먼저 «🔑 AI 사진 분석 설정»에서 API 키를 입력·저장하세요');
-        return false;
-      }
-      if (!Annotate.composite()) { toast('«불량 사진» 탭에서 사진을 먼저 업로드하세요'); return false; }
-      return true;
-    }
-
-    function collectMarkers() {
-      return (Store.current().photo.shapes || [])
-        .filter((s) => s.type !== 'pen' && s.n)
-        .map((s) => ({ n: s.n, note: (s.note || '').trim() }));
-    }
-
-    // 전체 사진 + 각 표시영역 확대 크롭 + 참고 사진
-    function collectImages() {
-      const images = [{ label: '전체 불량 사진 (빨간 박스·번호 = 표시 영역)', dataUrl: Annotate.composite() }];
-      (Annotate.markerCrops(6) || []).forEach((c) => {
-        images.push({ label: '표시 영역 ' + c.n + ' 확대' + (c.note ? ' — ' + c.note : ''), dataUrl: c.dataUrl });
-      });
-      (Store.current().refPhotos || []).forEach((u, i) => {
-        images.push({ label: '참고 사진 ' + (i + 1), dataUrl: u });
-      });
-      return images;
-    }
-
     async function runAiAnalysis() {
       const label = aiBtn.textContent;
       aiBtn.disabled = true;
@@ -300,7 +346,7 @@
       const onStage = (s) => { aiBtn.textContent = '📷 ' + s; };
       onStage('분석 중… (1~2분)');
       try {
-        const { result } = await AI.analyze(collectImages(), Store.current().fields || {}, collectMarkers(), { onStage: onStage });
+        const { result } = await AI.analyze(aiCollectImages(), Store.current().fields || {}, aiCollectMarkers(), { onStage: onStage });
         const n = Report.applyPhotoAnalysis(result);
         loadReport();
         toast(n ? 'AI 8D 작성 완료 — ' + n + '개 항목. 날짜·수량 등은 직접 확인해 채우세요.' : '분석 완료 — 반영할 결과가 없습니다.');
@@ -327,7 +373,7 @@
       aiBtn.disabled = true;
       aiClarifyBtn.textContent = '❓ 질문 생성 중…';
       try {
-        const { questions } = await AI.askQuestions(collectImages(), Store.current().fields || {}, collectMarkers());
+        const { questions } = await AI.askQuestions(aiCollectImages(), Store.current().fields || {}, aiCollectMarkers());
         if (!questions.length) { toast('추가 질문 없음 — 바로 «AI 8D 분석·작성»을 실행하세요'); return; }
         const ol = $('#aiQuestionList');
         ol.innerHTML = '';
@@ -436,6 +482,7 @@
     bindFields();
     initTableButtons();
     initMenu();
+    initAiAssist();
     Annotate.mount(afterChange);
     Fishbone.mount(afterChange);
     Report.mount();

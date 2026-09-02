@@ -129,6 +129,23 @@
     notes: '분석 한계 / 실측·성형조건 데이터로 확인이 필요한 사항 (간결한 목록형)',
   };
 
+  function auxLines(fields) {
+    return [
+      ['부품 유형(지정)', fields.aux_partType],
+      ['발생 추세', fields.aux_trend],
+      ['금형·호기/캐비티·설비', fields.aux_equip],
+      ['재료 등급·로트·색상', fields.aux_material],
+      ['성형/조립 조건 실측', fields.aux_condition],
+      ['최근 4M 변경점', fields.aux_change],
+      ['유사 과거 이력·재발 여부', fields.aux_history],
+      ['기타 특이사항', fields.aux_extra],
+      ['되묻기 답변', fields.aux_answers],
+    ]
+      .filter(([, v]) => (v == null ? '' : String(v)).trim())
+      .map(([k, v]) => '- ' + k + ': ' + String(v).trim())
+      .join('\n');
+  }
+
   function buildPrompt(fields, markers, imgCount, observations) {
     const ctx = [
       ['고객사', fields.customer],
@@ -146,20 +163,7 @@
       ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
       : '- (표시 영역 없음)';
 
-    const aux = [
-      ['부품 유형(지정)', fields.aux_partType],
-      ['발생 추세', fields.aux_trend],
-      ['금형·호기/캐비티·설비', fields.aux_equip],
-      ['재료 등급·로트·색상', fields.aux_material],
-      ['성형/조립 조건 실측', fields.aux_condition],
-      ['최근 4M 변경점', fields.aux_change],
-      ['유사 과거 이력·재발 여부', fields.aux_history],
-      ['기타 특이사항', fields.aux_extra],
-      ['되묻기 답변', fields.aux_answers],
-    ]
-      .filter(([, v]) => (v == null ? '' : String(v)).trim())
-      .map(([k, v]) => '- ' + k + ': ' + String(v).trim())
-      .join('\n');
+    const aux = auxLines(fields);
 
     return [
       '## 기본 정보',
@@ -338,13 +342,7 @@
     const mk = (markers && markers.length)
       ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
       : '- (표시 영역 없음)';
-    const aux = [
-      ['부품 유형(지정)', fields.aux_partType], ['발생 추세', fields.aux_trend],
-      ['금형·호기/캐비티·설비', fields.aux_equip], ['재료', fields.aux_material],
-      ['조건 실측', fields.aux_condition], ['4M 변경점', fields.aux_change],
-      ['과거 이력', fields.aux_history], ['기타', fields.aux_extra],
-    ].filter(([, v]) => (v == null ? '' : String(v)).trim())
-      .map(([k, v]) => '- ' + k + ': ' + String(v).trim()).join('\n');
+    const aux = auxLines(fields);
     return [
       '## 정보',
       '- 부품명: ' + (fields.partName || '(미입력)'),
@@ -371,6 +369,118 @@
     ]);
     const out = await streamMessages(content, QUESTION_SYSTEM, 4000);
     return { questions: parseQuestions(out.text), usage: out.usage, model: out.model };
+  }
+
+  /* ── 항목 단위 보강 (작성자 초안 기반) ──
+   * D4 발생/유출 원인 → 5-Why 전개, D5 각 대책 → 문장 보강 */
+  const ASSIST = {
+    why_occur: {
+      base: 'd4_occur', shape: 'why',
+      instr: '작성자의 "발생 원인" 초안을 출발점으로 발생 원인의 5-Why를 전개하세요. why 배열은 정확히 6개(Why1~Why5 + 근본원인). '
+        + '앞 항목의 답이 다음 "왜?"의 전제가 되도록 인과로 연결하고, 마지막은 검증 가능한 근본원인. '
+        + '사출품이면 성형 조건(사출압·보압·수지온도·금형온도·게이트·벤트), 조립품이면 삽입력·체결 토크·압입 하중/변위·정렬 지그·검사 수준까지 내려갈 것. '
+        + '초안이 비어 있으면 사진·불량 유형·표시 영역·보조 정보를 근거로 새로 작성.',
+    },
+    why_escape: {
+      base: 'd4_escape', shape: 'why',
+      instr: '작성자의 "유출 원인" 초안을 출발점으로 유출(검출 실패) 원인의 5-Why를 전개하세요. why 배열은 정확히 6개. '
+        + '검사 기준·판정 기준·계측기·샘플링·검사 항목·검사 조도/시점의 공백 관점으로 인과 연결. 마지막은 검증 가능한 근본원인.',
+    },
+    d5_occur: {
+      base: 'd5_occur', shape: 'text',
+      instr: '발생 방지(영구) 대책을 작성자 초안 기반으로 보강. 재설정한 공정/조립 조건·표준화·설비 조치를 종결형 평서문 1~3문장으로 단정.',
+    },
+    d5_escape: {
+      base: 'd5_escape', shape: 'text',
+      instr: '유출 방지(영구) 대책을 작성자 초안 기반으로 보강. 개정한 검사 기준·계측기·샘플링·Poka-Yoke를 1~3문장으로 단정.',
+    },
+    d5_risk: {
+      base: 'd5_risk', shape: 'text',
+      instr: '부작용/위험성 검토. 위 대책 시행 시 사이클타임·생산성·작업자 적응·타 특성 영향 등의 위험과 통제 방안을 1~2문장.',
+    },
+    d5_basis: {
+      base: 'd5_basis', shape: 'text',
+      instr: '대책 선정 근거. 검토한 대안과, 현장 적용성·효율성·검증 가능성 관점의 비교 결과를 1~2문장.',
+    },
+  };
+
+  const ASSIST_SYSTEM =
+    '당신은 자동차 사출·조립 부품 품질 엔지니어입니다. 작성자가 쓴 8D 초안 중 지정된 한 항목만 보강합니다. '
+    + '작성자의 초안 의도를 유지하면서 부품 유형(사출/조립) 계통의 메커니즘으로 구체화합니다. '
+    + '문체는 실제 대책서에 그대로 들어갈 종결형 평서문("~함", "~재설정함", "~로 확인됨"). "~해야 합니다"류 지침 말투 금지. '
+    + '지어낸 날짜·수량·LOT·인명은 "[확인]"으로 표기. 출력은 지정된 JSON 객체 하나만, 코드펜스 금지, 값은 한국어.';
+
+  function assistPrompt(kind, fields, why, markers) {
+    const cfg = ASSIST[kind];
+    const mk = (markers && markers.length)
+      ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
+      : '- (표시 영역 없음)';
+    const aux = auxLines(fields);
+    const cur = [
+      ['D2 What', fields.d2_what],
+      ['D4 발생 원인', fields.d4_occur],
+      ['D4 유출 원인', fields.d4_escape],
+      ['5-Why(발생) 현재', ((why && why.occur) || []).filter(Boolean).join(' → ')],
+      ['5-Why(유출) 현재', ((why && why.escape) || []).filter(Boolean).join(' → ')],
+      ['D5 발생 방지 대책', fields.d5_occur],
+      ['D5 유출 방지 대책', fields.d5_escape],
+      ['D5 부작용/위험성', fields.d5_risk],
+      ['D5 선정 근거', fields.d5_basis],
+    ]
+      .filter(([, v]) => (v == null ? '' : String(v)).trim())
+      .map(([k, v]) => '- ' + k + ': ' + String(v).trim())
+      .join('\n') || '- (아직 작성된 항목 없음)';
+    const baseText = (fields[cfg.base] || '').trim();
+    const shapeHint = cfg.shape === 'why'
+      ? '{"why": ["Why1", "Why2", "Why3", "Why4", "Why5", "근본원인(검증 대상)"]}'
+      : '{"text": "..."}';
+    return [
+      '## 기본 정보',
+      '- 부품명: ' + (fields.partName || '(미입력)'),
+      '- 불량 유형(입력값): ' + (fields.defectType || '(미입력)'),
+      '- 발생 공정: ' + (fields.defectProcess || '(미입력)'),
+      '- 불량 현상 상세: ' + (fields.defectDesc || '(미입력)'),
+      '',
+      '## 표시 영역 (작업자 표기)',
+      mk,
+      '',
+    ].concat(aux ? ['## 보조 정보 (작성자 제공 · 사실로 신뢰)', aux, ''] : []).concat([
+      '## 현재 8D 작성 상태 (참고)',
+      cur,
+      '',
+      '## 작성자 초안 — 이번에 보강할 항목: ' + kind,
+      baseText || '(비어 있음 — 위 근거로 새로 작성)',
+      '',
+      DOMAIN,
+      '',
+      '## 요청',
+      cfg.instr,
+      '아래 JSON 객체 하나만 출력하세요: ' + shapeHint,
+    ]).join('\n');
+  }
+
+  /* kind: why_occur|why_escape|d5_occur|d5_escape|d5_risk|d5_basis
+   * opts: { fields, why, markers, images } → {why:[6]} 또는 {text} */
+  async function assist(kind, opts) {
+    if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
+    if (!getKey()) throw new Error('API 키가 설정되지 않았습니다.');
+    if (!ASSIST[kind]) throw new Error('알 수 없는 보강 항목: ' + kind);
+    opts = opts || {};
+    const f = opts.fields || {};
+    const why = opts.why || { occur: [], escape: [] };
+    const built = buildImageContent(opts.images || []);
+    const content = built.content.concat([
+      { type: 'text', text: assistPrompt(kind, f, why, opts.markers || []) },
+    ]);
+    const out = await streamMessages(content, ASSIST_SYSTEM, 8000);
+    const obj = extractJSON(out.text);
+    if (ASSIST[kind].shape === 'why') {
+      let arr = obj && Array.isArray(obj.why) ? obj.why.map((x) => String(x == null ? '' : x).trim()) : [];
+      arr = arr.slice(0, 6);
+      while (arr.length < 6) arr.push('');
+      return { why: arr, usage: out.usage, model: out.model };
+    }
+    return { text: obj && obj.text != null ? String(obj.text).trim() : '', usage: out.usage, model: out.model };
   }
 
   /* images: [{label, dataUrl}, ...] 또는 단일 dataURL 문자열
@@ -406,6 +516,6 @@
 
   global.AI = {
     hasKey, getKey, setKey, getModel, setModel, getEffort, setEffort, getTwoStage, setTwoStage,
-    available, isOnline, analyze, askQuestions, EFFORTS, DEFAULT_MODEL, DEFAULT_EFFORT,
+    available, isOnline, analyze, askQuestions, assist, EFFORTS, DEFAULT_MODEL, DEFAULT_EFFORT,
   };
 })(window);
