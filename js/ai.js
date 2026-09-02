@@ -550,6 +550,29 @@
     return { text: obj && obj.text != null ? String(obj.text).trim() : '', usage: out.usage, model: out.model };
   }
 
+  /* ── 대책서 내용 영문 번역 ── */
+  const TRANSLATE_SYSTEM =
+    '당신은 자동차 품질 8D 대책서 전문 번역가입니다. 한국어 대책서 내용을 고객 제출용 전문 영문으로 번역합니다. '
+    + '자동차 8D / CAR 표준 용어를 사용하고, 종결형 평서문을 유지합니다("was reset to...", "confirmed", "100% containment applied"). '
+    + '"[확인]"은 "[TBD]"로 옮기고, 수치·단위·기호·고유명사(설비명·P/N·LOT)는 그대로 둡니다. 의역보다 정확·간결. '
+    + '입력 JSON과 완전히 동일한 키 구조로, 값만 영문으로 채운 JSON 객체 하나만 출력합니다. 코드펜스·설명 금지.';
+
+  /* payload: { fields:{key:ko}, why:{occur:[],escape:[]}, fishbone:{problem, cats:{man:[{text,subs:[]}]}} } */
+  async function translate(payload) {
+    if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
+    if (!getKey()) throw new Error('API 키가 설정되지 않았습니다.');
+    const text = [
+      '## 번역할 8D 대책서 내용 (JSON)',
+      JSON.stringify(payload, null, 1),
+      '',
+      '## 출력',
+      '위와 동일한 키 구조의 JSON 하나. 값만 영문으로. why.occur / why.escape 는 배열 길이(6)와 순서 유지(빈 문자열도 그대로).',
+      'fishbone.cats 의 각 원인은 {"text": "...", "subs": ["..."]} 형태 유지, 배열 길이·순서 유지.',
+    ].join('\n');
+    const out = await streamMessages([{ type: 'text', text: text }], TRANSLATE_SYSTEM, 16000);
+    return extractJSON(out.text);
+  }
+
   /* images: [{label, dataUrl}, ...] 또는 단일 dataURL 문자열
    * opts: { twoStage:boolean, onStage:fn(label), scope:string[] } */
   async function analyze(images, fields, markers, opts) {
@@ -584,7 +607,7 @@
 
   global.AI = {
     hasKey, getKey, setKey, getModel, setModel, getEffort, setEffort, getTwoStage, setTwoStage,
-    available, isOnline, analyze, askQuestions, assist, scopeFilter, SECTIONS, SECTION_ORDER,
+    available, isOnline, analyze, askQuestions, assist, translate, scopeFilter, SECTIONS, SECTION_ORDER,
     EFFORTS, DEFAULT_MODEL, DEFAULT_EFFORT,
   };
 })(window);

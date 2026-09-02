@@ -111,8 +111,8 @@
     return w;
   }
 
-  function buildSVG() {
-    const data = fb();
+  function buildSVG(dataOverride) {
+    const data = dataOverride || fb();
     const cats = Store.FB_CATS.map(([k, label]) => ({ k, label, causes: (data.cats[k] || []).filter((c) => c.text || (c.subs || []).some(Boolean)) }));
     const top = cats.slice(0, 3);
     const bottom = cats.slice(3, 6);
@@ -223,6 +223,9 @@
   function svgString() {
     return buildSVG();
   }
+  function svgStringFrom(data) {
+    return buildSVG(data);
+  }
 
   function downloadPNG() {
     const svg = buildSVG();
@@ -282,5 +285,5 @@
     renderDiagram();
   }
 
-  global.Fishbone = { mount, load, renderDiagram, renderEditor, svgString };
+  global.Fishbone = { mount, load, renderDiagram, renderEditor, svgString, svgStringFrom };
 })(window);

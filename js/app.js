@@ -404,6 +404,75 @@
       runAiAnalysis();
     });
 
+    // ── 출력 문서 언어 (국문 / English / 병기) + AI 영문 번역 ──
+    const LANG_LS = 'qcr.reportLang.v1';
+    const langSel = $('#reportLang');
+    const trBtn = $('#reportTranslateBtn');
+    if (langSel) {
+      try { const v = localStorage.getItem(LANG_LS); if (v) langSel.value = v; } catch (e) {}
+      Report.setLang(langSel.value);
+      langSel.addEventListener('change', () => {
+        try { localStorage.setItem(LANG_LS, langSel.value); } catch (e) {}
+        Report.setLang(langSel.value);
+      });
+    }
+    function collectTranslatable() {
+      const r = Store.current();
+      const NARR = ['defectType', 'defectDesc', 'd0_symptom', 'd0_era',
+        'd2_what', 'd2_where', 'd2_when', 'd2_who', 'd2_how', 'd2_howmany', 'd2_why', 'd2_is', 'd2_isnot',
+        'd3_action', 'd3_result', 'd3_verify', 'd4_occur', 'd4_escape', 'd4_verify',
+        'd5_occur', 'd5_escape', 'd5_risk', 'd5_basis', 'd6_effect', 'd7_lesson', 'd7_std', 'd8_closing'];
+      const fields = {};
+      NARR.forEach((k) => { const v = ((r.fields || {})[k] || '').trim(); if (v) fields[k] = v; });
+      const why = {
+        occur: ((r.why || {}).occur || []).map((x) => x || ''),
+        escape: ((r.why || {}).escape || []).map((x) => x || ''),
+      };
+      const cats = {};
+      const fbc = (r.fishbone || {}).cats || {};
+      Object.keys(fbc).forEach((k) => {
+        const list = (fbc[k] || []).filter((c) => (c.text || '').trim() || (c.subs || []).some(Boolean));
+        if (list.length) cats[k] = list.map((c) => ({ text: c.text || '', subs: (c.subs || []).filter(Boolean) }));
+      });
+      return { fields: fields, why: why, fishbone: { problem: (r.fishbone || {}).problem || '', cats: cats } };
+    }
+    if (trBtn) {
+      trBtn.addEventListener('click', async () => {
+        if (!AI.isOnline()) { toast('오프라인 상태입니다.'); return; }
+        if (!AI.hasKey()) { const s = $('#aiSettings'); if (s) s.open = true; toast('먼저 API 키를 설정하세요'); return; }
+        const payload = collectTranslatable();
+        const hasContent = Object.keys(payload.fields).length
+          || payload.why.occur.some(Boolean) || payload.why.escape.some(Boolean)
+          || Object.keys(payload.fishbone.cats).length || payload.fishbone.problem.trim();
+        if (!hasContent) { toast('번역할 대책서 내용이 없습니다'); return; }
+        const label = trBtn.textContent;
+        trBtn.disabled = true;
+        trBtn.textContent = '🌐 번역 중… (약 30초)';
+        try {
+          const en = await AI.translate(payload);
+          Store.current().i18n = {
+            fields: (en && en.fields) || {},
+            why: (en && en.why) || {},
+            fishbone: (en && en.fishbone) || {},
+            updatedAt: Date.now(),
+          };
+          Store.touch();
+          if (langSel && langSel.value === 'ko') {
+            langSel.value = 'both';
+            try { localStorage.setItem(LANG_LS, 'both'); } catch (e) {}
+          }
+          Report.setLang(langSel ? langSel.value : 'both');
+          markDirty();
+          toast('영문 번역 완료 — 미리보기·인쇄에 반영됩니다');
+        } catch (e) {
+          toast('번역 실패: ' + (e && e.message ? e.message : e));
+        } finally {
+          trBtn.disabled = false;
+          trBtn.textContent = label;
+        }
+      });
+    }
+
     // ── 되묻기 모드 ──
     aiClarifyBtn.addEventListener('click', async () => {
       if (!aiPreflight()) return;

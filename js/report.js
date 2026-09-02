@@ -1,6 +1,13 @@
 /* ===== 미리보기 / 출력 문서 생성 ===== */
 (function (global) {
   let docEl, progressEl;
+  let lang = 'ko'; // 'ko' | 'en' | 'both'
+
+  function setLang(v) {
+    lang = (v === 'en' || v === 'both') ? v : 'ko';
+    render();
+  }
+  function getLang() { return lang; }
 
   function esc(t) {
     return (t == null ? '' : String(t)).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -11,6 +18,37 @@
   function val(v, empty) {
     v = (v == null ? '' : String(v)).trim();
     return v ? nl(v) : '<span class="empty">' + (empty || '—') + '</span>';
+  }
+  function T(ko) {
+    return (global.I18N && I18N.t) ? I18N.t(ko) : ko;
+  }
+  // 고정 라벨/제목 — 언어 모드에 따라 KO / EN / 병기
+  function L(ko) {
+    if (lang === 'ko') return esc(ko);
+    const en = T(ko);
+    if (lang === 'en') return esc(en);
+    return esc(ko) + (en !== ko ? '<span class="doc-en-lbl"> / ' + esc(en) + '</span>' : '');
+  }
+  // 자유 서술 필드 값 — report.i18n.fields[key] 에 캐시된 영문 사용
+  function enOf(key) {
+    return (((Store.current().i18n || {}).fields) || {})[key] || '';
+  }
+  function fv(key, empty) {
+    const ko = f(key);
+    const en = String(enOf(key) || '').trim();
+    if (lang === 'ko') return val(ko, empty);
+    if (lang === 'en') return en ? nl(en) : val(ko, empty);
+    if (!ko.trim()) return val('', empty);
+    return nl(ko) + (en ? '<div class="doc-en">' + nl(en) + '</div>' : '');
+  }
+  // 짧은 enum 값 (확인됨/승인 등) — 사전만
+  function ev(key) {
+    const ko = f(key);
+    if (!ko.trim()) return val('');
+    if (lang === 'ko') return esc(ko);
+    const en = T(ko);
+    if (lang === 'en') return esc(en);
+    return esc(ko) + (en !== ko ? ' / ' + esc(en) : '');
   }
 
   function f(k) {
@@ -35,22 +73,33 @@
   function rows(pairs, wide) {
     return (
       '<table' + (wide ? ' class="wide"' : '') + '>' +
-      pairs.map(([k, v]) => '<tr><th>' + esc(k) + '</th><td>' + v + '</td></tr>').join('') +
+      pairs.map(([k, v]) => '<tr><th>' + L(k) + '</th><td>' + v + '</td></tr>').join('') +
       '</table>'
     );
   }
 
   function sectionHead(tag, title) {
-    return '<h2><span class="tag">' + tag + '</span>' + esc(title) + '</h2>';
+    return '<h2><span class="tag">' + (lang === 'ko' ? esc(tag) : esc(T(tag))) + '</span>' + L(title) + '</h2>';
   }
 
-  function whyBox(arr) {
+  function whyBox(arr, enArr) {
     const labels = ['Why 1', 'Why 2', 'Why 3', 'Why 4', 'Why 5', '근본원인'];
-    const steps = arr
-      .map((v, i) => (v && v.trim() ? '<span class="step"><b>' + labels[i] + ':</b> ' + esc(v) + '</span>' : ''))
+    enArr = Array.isArray(enArr) ? enArr : [];
+    const steps = labels
+      .map((lbl, i) => {
+        const ko = (arr[i] || '').trim();
+        const en = (enArr[i] || '').trim();
+        const has = lang === 'en' ? (en || ko) : ko;
+        if (!has) return '';
+        let body;
+        if (lang === 'ko') body = esc(ko);
+        else if (lang === 'en') body = esc(en || ko);
+        else body = esc(ko) + (en ? '<span class="doc-en"> ' + esc(en) + '</span>' : '');
+        return '<span class="step"><b>' + L(lbl) + ':</b> ' + body + '</span>';
+      })
       .filter(Boolean)
       .join('');
-    return steps ? '<div class="why-box">' + steps + '</div>' : '<p class="empty">미작성</p>';
+    return steps ? '<div class="why-box">' + steps + '</div>' : '<p class="empty">' + L('미작성') + '</p>';
   }
 
   function qtyList() {
@@ -71,7 +120,7 @@
     const shapes = (Store.current().photo.shapes || []).filter((s) => s.type !== 'pen');
     if (!shapes.length) return '';
     return (
-      '<table><tr><th style="width:40px">No</th><th>표시 영역 불량 내용</th></tr>' +
+      '<table><tr><th style="width:40px">' + L('No') + '</th><th>' + L('표시 영역 불량 내용') + '</th></tr>' +
       shapes.map((s) => '<tr><td>' + s.n + '</td><td>' + val(s.note, '내용 미작성') + '</td></tr>').join('') +
       '</table>'
     );
@@ -85,8 +134,12 @@
     const fbSVG = (global.Fishbone && Fishbone.svgString()) || '';
     let h = '';
 
-    h += '<h1>품질 대책서 (8D Report)</h1>';
-    h += '<p class="doc-sub">' + val(f('customer'), '고객사') + ' &nbsp;|&nbsp; ' + val(f('partName'), '부품명') + ' &nbsp;|&nbsp; ' + val(f('defectType'), '불량 유형') + '</p>';
+    h += '<h1>' + L('품질 대책서 (8D Report)') + '</h1>';
+    if (lang !== 'ko' && !(r.i18n && r.i18n.fields)) {
+      h += '<p class="doc-note no-print">※ 서술 내용의 영문 번역이 아직 없습니다. «🌐 영문 번역(AI)» 버튼을 누르면 채워집니다. (라벨·제목은 즉시 번역됨)</p>';
+    }
+    const ph = (ko) => (lang === 'ko' ? ko : T(ko));
+    h += '<p class="doc-sub">' + val(f('customer'), ph('고객사')) + ' &nbsp;|&nbsp; ' + val(f('partName'), ph('부품명')) + ' &nbsp;|&nbsp; ' + fv('defectType', ph('불량 유형')) + '</p>';
 
     // 문서/제품 정보
     h += sectionHead('INFO', '문서 및 제품 정보');
@@ -110,14 +163,14 @@
     // 불량 개요
     h += sectionHead('개요', '불량 개요');
     h += rows([
-      ['불량 유형', val(f('defectType'))],
+      ['불량 유형', fv('defectType')],
       ['불량 등급', val(f('defectGrade'))],
       ['발생 공정', val(f('defectProcess'))],
       ['수량 현황', qtyList()],
       ['납품 LOT / 생산일자', val(f('lotNo'))],
       ['발생일 / 접수일', val([f('occurDate'), f('receiveDate')].filter(Boolean).join(' / '))],
       ['초도(D+3) / 최종 회신', val([f('interimDue'), f('finalDue')].filter(Boolean).join(' / '))],
-      ['불량 현상 상세', val(f('defectDesc'))],
+      ['불량 현상 상세', fv('defectDesc')],
     ], true);
 
     // 불량 사진
@@ -133,10 +186,10 @@
     // D0
     h += sectionHead('D0', '준비 & 비상 대응 조치 (ERA)');
     h += rows([
-      ['증상 인식 / 초기 상황', val(f('d0_symptom'))],
-      ['비상 대응 조치', val(f('d0_era'))],
+      ['증상 인식 / 초기 상황', fv('d0_symptom')],
+      ['비상 대응 조치', fv('d0_era')],
       ['조치일 / 담당', val([f('d0_date'), f('d0_owner')].filter(Boolean).join(' / '))],
-      ['ERA 유효성', val(f('d0_verify'))],
+      ['ERA 유효성', ev('d0_verify')],
     ], true);
 
     // D1
@@ -146,7 +199,7 @@
       ['팀 리더', val(f('d1_leader'))],
     ], true);
     if ((r.d1 || []).length) {
-      h += '<table><tr><th style="width:auto">이름</th><th>부서</th><th>역할 / 담당</th></tr>' +
+      h += '<table><tr><th style="width:auto">' + L('이름') + '</th><th>' + L('부서') + '</th><th>' + L('역할 / 담당') + '</th></tr>' +
         r.d1.map((m) => '<tr><td>' + val(m.name) + '</td><td>' + val(m.dept) + '</td><td>' + val(m.role) + '</td></tr>').join('') +
         '</table>';
     }
@@ -164,82 +217,109 @@
         ['How', '검출 방법', 'd2_how'],
         ['How many', '규모 / 추세', 'd2_howmany'],
       ].map(([en, ko, key]) =>
-        '<div class="d2-item"><div class="d2-k"><span class="d2-en">' + en + '</span>' + esc(ko) + '</div>' +
-        '<div class="d2-v">' + val(f(key)) + '</div></div>'
+        '<div class="d2-item"><div class="d2-k"><span class="d2-en">' + en + '</span>' + (lang === 'en' ? '' : esc(ko)) + '</div>' +
+        '<div class="d2-v">' + fv(key) + '</div></div>'
       ).join('') +
       '</div>';
 
     // 왜 문제인가 — 독립 강조 블록
-    h += '<div class="d2-why"><div class="d2-why-h">왜 문제인가 · 고객 영향</div>' +
-      '<div class="d2-why-b">' + val(f('d2_why')) + '</div></div>';
+    h += '<div class="d2-why"><div class="d2-why-h">' + L('왜 문제인가 · 고객 영향') + '</div>' +
+      '<div class="d2-why-b">' + fv('d2_why') + '</div></div>';
 
     // IS / IS NOT 비교
     h += '<div class="d2-isnot">' +
-      '<div class="d2-is"><div class="d2-k">IS · 발생한다</div><div class="d2-v">' + val(f('d2_is')) + '</div></div>' +
-      '<div class="d2-isn"><div class="d2-k">IS NOT · 발생하지 않는다</div><div class="d2-v">' + val(f('d2_isnot')) + '</div></div>' +
+      '<div class="d2-is"><div class="d2-k">' + L('IS · 발생한다') + '</div><div class="d2-v">' + fv('d2_is') + '</div></div>' +
+      '<div class="d2-isn"><div class="d2-k">' + L('IS NOT · 발생하지 않는다') + '</div><div class="d2-v">' + fv('d2_isnot') + '</div></div>' +
       '</div>';
 
     // D3
     h += sectionHead('D3', '봉쇄(임시) 조치 — ICA');
     h += rows([
-      ['임시 조치 내용', val(f('d3_action'))],
+      ['임시 조치 내용', fv('d3_action')],
       ['실시일 / 담당', val([f('d3_date'), f('d3_owner')].filter(Boolean).join(' / '))],
-      ['선별 수량 / 결과', val(f('d3_result'))],
-      ['유효성 검증', val(f('d3_verify'))],
+      ['선별 수량 / 결과', fv('d3_result')],
+      ['유효성 검증', fv('d3_verify')],
     ], true);
 
     // D4
     h += sectionHead('D4', '근본 원인 분석 (Root Cause)');
     h += rows([
-      ['발생 원인 (Occurrence)', val(f('d4_occur'))],
-      ['유출 원인 (Detection)', val(f('d4_escape'))],
+      ['발생 원인 (Occurrence)', fv('d4_occur')],
+      ['유출 원인 (Detection)', fv('d4_escape')],
     ], true);
-    h += '<p><b>5-Why — 발생 원인</b></p>' + whyBox(r.why.occur);
-    h += '<p><b>5-Why — 유출 원인</b></p>' + whyBox(r.why.escape);
-    h += rows([['원인 검증 방법 / 근거', val(f('d4_verify'))]], true);
+    const whyEn = (r.i18n && r.i18n.why) || {};
+    h += '<p><b>' + L('5-Why — 발생 원인') + '</b></p>' + whyBox(r.why.occur, whyEn.occur);
+    h += '<p><b>' + L('5-Why — 유출 원인') + '</b></p>' + whyBox(r.why.escape, whyEn.escape);
+    h += rows([['원인 검증 방법 / 근거', fv('d4_verify')]], true);
     if (fbSVG && (Store.current().fishbone.problem || hasFbCauses())) {
-      h += '<p><b>특성요인도 (Fishbone)</b></p><div class="fb-diagram">' + fbSVG + '</div>';
+      const fbOut = (lang !== 'ko' && r.i18n && r.i18n.fishbone && global.Fishbone && Fishbone.svgStringFrom)
+        ? Fishbone.svgStringFrom(mergeFishboneEn(Store.current().fishbone, r.i18n.fishbone, lang))
+        : fbSVG;
+      h += '<p><b>' + L('특성요인도 (Fishbone)') + '</b></p><div class="fb-diagram">' + fbOut + '</div>';
     }
 
     // D5
     h += sectionHead('D5', '영구 시정 조치 선정 (PCA)');
     h += rows([
-      ['발생 방지 대책', val(f('d5_occur'))],
-      ['유출 방지 대책', val(f('d5_escape'))],
-      ['부작용 / 위험성 검토', val(f('d5_risk'))],
-      ['선정 근거 (대안 비교)', val(f('d5_basis'))],
+      ['발생 방지 대책', fv('d5_occur')],
+      ['유출 방지 대책', fv('d5_escape')],
+      ['부작용 / 위험성 검토', fv('d5_risk')],
+      ['선정 근거 (대안 비교)', fv('d5_basis')],
     ], true);
 
     // D6
     h += sectionHead('D6', '시정 조치 실행 & 검증');
     if ((r.d6 || []).length) {
-      h += '<table><tr><th style="width:auto">조치 내용</th><th>담당</th><th>완료예정</th><th>완료일</th><th>검증 결과</th></tr>' +
+      h += '<table><tr><th style="width:auto">' + L('조치 내용') + '</th><th>' + L('담당') + '</th><th>' + L('완료예정') + '</th><th>' + L('완료일') + '</th><th>' + L('검증 결과') + '</th></tr>' +
         r.d6.map((x) => '<tr><td>' + val(x.action) + '</td><td>' + val(x.owner) + '</td><td>' + val(x.due) + '</td><td>' + val(x.done) + '</td><td>' + val(x.result) + '</td></tr>').join('') +
         '</table>';
     }
     h += rows([
       ['양산 적용일 / LOT', val([f('d6_massdate'), f('d6_masslot')].filter(Boolean).join(' / '))],
-      ['효과 검증 결과 (전/후)', val(f('d6_effect'))],
+      ['효과 검증 결과 (전/후)', fv('d6_effect')],
     ], true);
 
     // D7
     h += sectionHead('D7', '재발 방지 & 수평 전개');
-    const docs = Store.D7_DOCS.filter(([k]) => r.d7docs[k]).map(([, label]) => label);
+    const docs = Store.D7_DOCS.filter(([k]) => r.d7docs[k]).map(([, label]) => (lang === 'ko' ? label : T(label)));
     h += rows([
-      ['개정 / 반영 문서', docs.length ? esc(docs.join(', ')) : '<span class="empty">선택 항목 없음</span>'],
-      ['수평 전개', val(f('d7_lesson'))],
-      ['표준화 / 교육', val(f('d7_std'))],
+      ['개정 / 반영 문서', docs.length ? esc(docs.join(', ')) : '<span class="empty">' + L('선택 항목 없음') + '</span>'],
+      ['수평 전개', fv('d7_lesson')],
+      ['표준화 / 교육', fv('d7_std')],
     ], true);
 
     // D8
     h += sectionHead('D8', '종결 & 팀 노고 치하');
     h += rows([
-      ['종결 코멘트 / 팀 노고', val(f('d8_closing'))],
+      ['종결 코멘트 / 팀 노고', fv('d8_closing')],
       ['종결 승인자 / 종결일', val([f('d8_approver'), f('d8_date')].filter(Boolean).join(' / '))],
-      ['고객 승인 여부', val(f('d8_customerOk'))],
+      ['고객 승인 여부', ev('d8_customerOk')],
     ], true);
 
     docEl.innerHTML = h;
+  }
+
+  /* 특성요인도 데이터에 영문을 얹어 임시 데이터 생성 (EN/병기 모드용) */
+  function mergeFishboneEn(fbData, fbEn, mode) {
+    fbEn = fbEn || {};
+    const cats = {};
+    Object.keys(fbData.cats || {}).forEach((k) => {
+      const ko = fbData.cats[k] || [];
+      const en = (fbEn.cats && fbEn.cats[k]) || [];
+      cats[k] = ko.map((c, i) => {
+        const enText = (en[i] && en[i].text) || en[i] || '';
+        const text = mode === 'en' ? (enText || c.text) : (enText ? c.text + ' / ' + enText : c.text);
+        const subs = (c.subs || []).map((s, j) => {
+          const es = (en[i] && en[i].subs && en[i].subs[j]) || '';
+          return mode === 'en' ? (es || s) : (es ? s + ' / ' + es : s);
+        });
+        return { text: text, subs: subs };
+      });
+    });
+    const pKo = fbData.problem || '';
+    const pEn = fbEn.problem || '';
+    const problem = mode === 'en' ? (pEn || pKo) : (pEn ? pKo + ' / ' + pEn : pKo);
+    return { problem: problem, cats: cats };
   }
 
   function hasFbCauses() {
@@ -486,5 +566,5 @@
     if (p) p.addEventListener('click', () => window.print());
   }
 
-  global.Report = { mount, render, updateProgress, buildAutoDraft, applyAutoDraft, applyPhotoAnalysis };
+  global.Report = { mount, render, updateProgress, buildAutoDraft, applyAutoDraft, applyPhotoAnalysis, setLang, getLang };
 })(window);
