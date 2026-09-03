@@ -469,6 +469,14 @@
       base: 'd5_basis', shape: 'text',
       instr: '대책 선정 근거. 검토한 대안과, 현장 적용성·효율성·검증 가능성 관점의 비교 결과를 1~2문장.',
     },
+    fishbone: {
+      shape: 'fishbone',
+      instr: '작성자가 편집 중인 6M(man·machine·material·method·measure·env) 특성요인도를 보강합니다. '
+        + '① 기존에 입력된 원인은 표현만 다듬어 유지하고, 그 하위원인(subs)도 그대로 둡니다. '
+        + '② 부품 유형(사출/조립) 계통과 사진·표시 영역·보조 정보에 근거해 누락된 핵심 원인을 카테고리별 2~4개가 되도록 채웁니다. '
+        + '③ 각 원인은 공정 파라미터·설비·검사 기준 수준의 구체적 명사구(한 줄). "작업자 부주의" 같은 일반론 금지. '
+        + '④ 근거가 없는 카테고리는 비워도 됩니다.',
+    },
   };
 
   const ASSIST_SYSTEM =
@@ -477,7 +485,7 @@
     + '문체는 실제 대책서에 그대로 들어갈 종결형 평서문("~함", "~재설정함", "~로 확인됨"). "~해야 합니다"류 지침 말투 금지. '
     + '지어낸 날짜·수량·LOT·인명은 "[확인]"으로 표기. 출력은 지정된 JSON 객체 하나만, 코드펜스 금지, 값은 한국어.';
 
-  function assistPrompt(kind, fields, why, markers) {
+  function assistPrompt(kind, fields, why, markers, fishbone) {
     const cfg = ASSIST[kind];
     const mk = (markers && markers.length)
       ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
@@ -497,10 +505,27 @@
       .filter(([, v]) => (v == null ? '' : String(v)).trim())
       .map(([k, v]) => '- ' + k + ': ' + String(v).trim())
       .join('\n') || '- (아직 작성된 항목 없음)';
-    const baseText = (fields[cfg.base] || '').trim();
     const shapeHint = cfg.shape === 'why'
       ? '{"why": ["Why1", "Why2", "Why3", "Why4", "Why5", "근본원인(검증 대상)"]}'
-      : '{"text": "..."}';
+      : cfg.shape === 'fishbone'
+        ? '{"fishbone": {"man": [{"text": "원인", "subs": ["하위원인"]}], "machine": [], "material": [], "method": [], "measure": [], "env": []}}'
+        : '{"text": "..."}';
+
+    let baseBlock;
+    if (cfg.shape === 'fishbone') {
+      const fbc = (fishbone && fishbone.cats) || {};
+      const lines = ['man', 'machine', 'material', 'method', 'measure', 'env'].map((k) => {
+        const list = (fbc[k] || []).filter((c) => (c.text || '').trim() || (c.subs || []).some(Boolean));
+        if (!list.length) return '- ' + k + ': (비어 있음)';
+        return '- ' + k + ': ' + list.map((c) => (c.text || '').trim() + ((c.subs || []).filter(Boolean).length ? ' [하위: ' + c.subs.filter(Boolean).join(', ') + ']' : '')).join(' / ');
+      });
+      baseBlock = ['## 현재 특성요인도(6M) 편집 내용 (이 내용을 유지·보강)',
+        '문제(특성): ' + ((fishbone && fishbone.problem) || '(미입력)'), lines.join('\n')].join('\n');
+    } else {
+      const baseText = (fields[cfg.base] || '').trim();
+      baseBlock = '## 작성자 초안 — 이번에 보강할 항목: ' + kind + '\n' + (baseText || '(비어 있음 — 위 근거로 새로 작성)');
+    }
+
     return [
       '## 기본 정보',
       '- 부품명: ' + (fields.partName || '(미입력)'),
@@ -515,8 +540,7 @@
       '## 현재 8D 작성 상태 (참고)',
       cur,
       '',
-      '## 작성자 초안 — 이번에 보강할 항목: ' + kind,
-      baseText || '(비어 있음 — 위 근거로 새로 작성)',
+      baseBlock,
       '',
       DOMAIN,
       '',
@@ -526,8 +550,8 @@
     ]).join('\n');
   }
 
-  /* kind: why_occur|why_escape|d5_occur|d5_escape|d5_risk|d5_basis
-   * opts: { fields, why, markers, images } → {why:[6]} 또는 {text} */
+  /* kind: why_occur|why_escape|d5_occur|d5_escape|d5_risk|d5_basis|fishbone
+   * opts: { fields, why, markers, images, fishbone } → {why:[6]} | {text} | {fishbone:{man:[{text,subs}]...}} */
   async function assist(kind, opts) {
     if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
     if (!getKey()) throw new Error('API 키가 설정되지 않았습니다.');
@@ -537,15 +561,31 @@
     const why = opts.why || { occur: [], escape: [] };
     const built = buildImageContent(opts.images || []);
     const content = built.content.concat([
-      { type: 'text', text: assistPrompt(kind, f, why, opts.markers || []) },
+      { type: 'text', text: assistPrompt(kind, f, why, opts.markers || [], opts.fishbone) },
     ]);
     const out = await streamMessages(content, ASSIST_SYSTEM, 8000);
     const obj = extractJSON(out.text);
-    if (ASSIST[kind].shape === 'why') {
+    const shape = ASSIST[kind].shape;
+    if (shape === 'why') {
       let arr = obj && Array.isArray(obj.why) ? obj.why.map((x) => String(x == null ? '' : x).trim()) : [];
       arr = arr.slice(0, 6);
       while (arr.length < 6) arr.push('');
       return { why: arr, usage: out.usage, model: out.model };
+    }
+    if (shape === 'fishbone') {
+      const fb = (obj && obj.fishbone) || {};
+      const out6 = {};
+      ['man', 'machine', 'material', 'method', 'measure', 'env'].forEach((k) => {
+        const list = Array.isArray(fb[k]) ? fb[k] : [];
+        out6[k] = list.map((c) => {
+          if (typeof c === 'string') return { text: c.trim(), subs: [] };
+          return {
+            text: String((c && c.text) || '').trim(),
+            subs: (c && Array.isArray(c.subs) ? c.subs : []).map((s) => String(s || '').trim()).filter(Boolean),
+          };
+        }).filter((c) => c.text);
+      });
+      return { fishbone: out6, usage: out.usage, model: out.model };
     }
     return { text: obj && obj.text != null ? String(obj.text).trim() : '', usage: out.usage, model: out.model };
   }

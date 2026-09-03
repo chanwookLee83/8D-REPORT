@@ -316,6 +316,49 @@
         }
       });
     });
+
+    // 특성요인도 6M AI 보강
+    const fbBtn = $('#fbAiBtn');
+    if (fbBtn) fbBtn.addEventListener('click', async () => {
+      if (!AI.isOnline()) { toast('오프라인 상태입니다.'); return; }
+      if (!AI.hasKey()) {
+        const s = $('#aiSettings'); if (s) s.open = true;
+        toast('미리보기 탭 «🔑 AI 사진 분석 설정»에서 API 키를 먼저 입력하세요');
+        return;
+      }
+      if (!confirm('현재 6M 편집 내용 + 사진·보조 정보를 근거로 AI가 특성요인도를 보강합니다.\n각 카테고리의 원인 목록이 새로 정리됩니다(기존 원인·하위원인은 유지 시도). 계속할까요?')) return;
+      const label = fbBtn.textContent;
+      fbBtn.disabled = true;
+      fbBtn.textContent = '✦ 6M 보강 중… (약 30초)';
+      try {
+        const out = await AI.assist('fishbone', {
+          fields: Store.current().fields || {},
+          why: Store.current().why || { occur: [], escape: [] },
+          markers: aiCollectMarkers(),
+          images: aiCollectImages(),
+          fishbone: Store.current().fishbone || { problem: '', cats: {} },
+        });
+        const fb = Store.current().fishbone || (Store.current().fishbone = { problem: '', cats: {} });
+        let n = 0;
+        Store.FB_CATS.forEach(([k]) => {
+          const list = (out.fishbone && out.fishbone[k]) || [];
+          if (list.length) { fb.cats[k] = list; n += list.length; }
+        });
+        if (!(fb.problem || '').trim()) {
+          const fx = Store.current().fields || {};
+          fb.problem = (fx.partName || '해당 부품') + ' ' + (fx.defectType || '불량') + ' 발생 원인 분석';
+        }
+        Store.touch();
+        Fishbone.load();
+        afterChange();
+        toast(n ? '6M 보강 완료 — 원인 ' + n + '개. 내용을 확인·수정하세요' : '보강 결과가 없습니다');
+      } catch (e) {
+        toast('실패: ' + (e && e.message ? e.message : e));
+      } finally {
+        fbBtn.disabled = false;
+        fbBtn.textContent = label;
+      }
+    });
   }
 
   /* ---------- 메뉴 / 신규 / 백업 ---------- */
