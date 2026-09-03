@@ -326,6 +326,7 @@
     });
     $('#newReportBtn').addEventListener('click', () => {
       Store.create();
+      if (Annotate.reset) Annotate.reset();   // 이전 대책서의 사진·표시·참고사진 초기화
       loadReport();
       toast('새 대책서를 만들었습니다');
       $$('#tabs .tab')[0].click();

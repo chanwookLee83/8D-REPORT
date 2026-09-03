@@ -411,5 +411,26 @@
     });
   }
 
-  global.Annotate = { mount, load, composite, markerCrops, render, renderMarkers, importRegions };
+  /* 사진·표시·참고사진 상태를 완전히 비운다 (신규 대책서 시작 시) */
+  function reset() {
+    const p = photo();
+    p.base = '';
+    p.shapes = [];
+    const rp = Store.current().refPhotos;
+    if (Array.isArray(rp)) rp.length = 0;
+    img = null;
+    cur = null;
+    drawing = false;
+    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const pi = document.getElementById('photoInput');
+    const ri = document.getElementById('refPhotoInput');
+    if (pi) pi.value = '';
+    if (ri) ri.value = '';
+    if (Store.touch) Store.touch();
+    render();
+    renderMarkers();
+    renderRefs();
+  }
+
+  global.Annotate = { mount, load, reset, composite, markerCrops, render, renderMarkers, importRegions };
 })(window);
