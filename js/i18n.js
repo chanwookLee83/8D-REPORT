@@ -99,6 +99,10 @@
     '선정 근거 (대안 비교)': 'Selection Basis (Alternatives Compared)',
 
     // D6
+    '구분': 'Type',
+    '영역': 'Action Area',
+    '발생 (Occurrence)': 'Occurrence',
+    '유출 (Non-Detection)': 'Non-Detection',
     '조치 내용': 'Action',
     '담당': 'Owner',
     '완료예정': 'Due',

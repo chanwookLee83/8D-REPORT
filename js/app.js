@@ -107,9 +107,18 @@
   }
 
   /* ---------- 동적 테이블 (D1 팀원 / D6 조치) ---------- */
+  const AREA_OPTS = ['', '발생 (Occurrence)', '유출 (Non-Detection)'];
   const TABLE_DEFS = {
     d1: { key: 'd1', cols: [['name', 'text'], ['dept', 'text'], ['role', 'text']], blank: () => ({ name: '', dept: '', role: '' }) },
-    d6: { key: 'd6', cols: [['action', 'text'], ['owner', 'text'], ['due', 'date'], ['done', 'date'], ['result', 'text']], blank: () => ({ action: '', owner: '', due: '', done: '', result: '' }) },
+    d6: {
+      key: 'd6',
+      cols: [
+        ['type', 'select', ['', 'TRC', 'MRC']],
+        ['area', 'select', AREA_OPTS],
+        ['action', 'text'], ['owner', 'text'], ['due', 'date'], ['done', 'date'], ['result', 'text'],
+      ],
+      blank: () => ({ type: '', area: '', action: '', owner: '', due: '', done: '', result: '' }),
+    },
   };
   function renderTable(name) {
     const def = TABLE_DEFS[name];
@@ -119,16 +128,33 @@
     tbody.innerHTML = '';
     list.forEach((item, idx) => {
       const tr = document.createElement('tr');
-      def.cols.forEach(([c, type]) => {
+      def.cols.forEach(([c, type, opts]) => {
         const td = document.createElement('td');
-        const inp = document.createElement('input');
-        inp.type = type;
-        inp.value = item[c] || '';
-        inp.addEventListener('input', () => {
-          item[c] = inp.value;
-          Store.touch();
-          afterChange();
-        });
+        let inp;
+        if (type === 'select') {
+          inp = document.createElement('select');
+          (opts || []).forEach((o) => {
+            const op = document.createElement('option');
+            op.value = o;
+            op.textContent = o || '—';
+            inp.appendChild(op);
+          });
+          inp.value = item[c] || '';
+          inp.addEventListener('change', () => {
+            item[c] = inp.value;
+            Store.touch();
+            afterChange();
+          });
+        } else {
+          inp = document.createElement('input');
+          inp.type = type;
+          inp.value = item[c] || '';
+          inp.addEventListener('input', () => {
+            item[c] = inp.value;
+            Store.touch();
+            afterChange();
+          });
+        }
         td.appendChild(inp);
         tr.appendChild(td);
       });

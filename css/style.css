@@ -289,7 +289,10 @@ details.d8[open] > summary::after{transform:rotate(90deg)}
 }
 details.d8 > .grid,details.d8 > .mini-table,details.d8 > .why-chain,
 details.d8 > .doc-check,details.d8 > button,details.d8 > h3,details.d8 > .marker-echo,
+details.d8 > .mini-table-scroll,
 details.d8 > p{margin-left:18px;margin-right:18px}
+.mini-table-scroll{overflow-x:auto;margin:8px 0}
+.mini-table-wide{min-width:720px}
 details.d8 > *:last-child{margin-bottom:18px}
 details.d8 .grid{margin-top:4px}
 
