@@ -341,6 +341,10 @@ details.d8 .grid{margin-top:4px}
 .fb-diagram svg{display:block;width:100%;height:auto}
 
 /* ---- Preview / print ---- */
+.panel-head{font-size:15px;font-weight:800;color:var(--ink);margin:6px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--accent-soft)}
+.panel-head + .preview-actions{margin-top:0}
+.btn-ai{background:var(--accent);color:#fff;box-shadow:0 1px 3px rgba(79,70,229,.35)}
+.btn-ai:hover{filter:brightness(1.06)}
 .preview-actions{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
 .preview-lang{display:inline-flex;align-items:center;gap:8px;padding-left:12px;border-left:1px solid var(--line)}
 #reportLang{padding:7px 10px;border-radius:9px;border:1px solid var(--line);background:#fcfcfd;color:var(--ink);font-size:12.5px;font-family:inherit}

@@ -52,7 +52,7 @@
   <button class="tab" data-tab="photo">불량 사진</button>
   <button class="tab" data-tab="d8">8D 리포트</button>
   <button class="tab" data-tab="fishbone">특성요인도</button>
-  <button class="tab" data-tab="preview">미리보기 / 출력</button>
+  <button class="tab" data-tab="preview">AI 분석 · 미리보기 / 출력</button>
 </nav>
 
 <main class="wrap">
@@ -381,10 +381,11 @@
     </div>
   </section>
 
-  <!-- ===================== 미리보기 / 출력 ===================== -->
+  <!-- ===================== AI 분석 · 미리보기 / 출력 ===================== -->
   <section class="panel" data-panel="preview">
+    <h2 class="panel-head no-print">🤖 AI 분석 · 작성</h2>
     <div class="preview-actions no-print">
-      <button id="aiPhotoBtn" class="btn btn-ghost">📷 AI 8D 분석·작성</button>
+      <button id="aiPhotoBtn" class="btn btn-ai">📷 AI 8D 분석·작성</button>
       <button id="aiClarifyBtn" class="btn btn-ghost">❓ 먼저 질문받기</button>
       <button id="autoDraftBtn" class="btn btn-ghost">✍ 템플릿 작성 (오프라인)</button>
       <span class="preview-lang">
@@ -479,6 +480,7 @@
         <p class="hint">키는 이 브라우저(localStorage)에만 저장되고 api.anthropic.com 으로만 전송됩니다. 모델: <span id="aiModelName"></span> (콘솔에서 <code>AI.setModel('claude-sonnet-5')</code> 로 변경)</p>
       </div>
     </details>
+    <h2 class="panel-head no-print">📄 미리보기 / 출력</h2>
     <div id="reportDoc" class="report-doc"></div>
   </section>
 
