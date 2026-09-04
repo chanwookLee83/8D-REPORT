@@ -135,13 +135,13 @@
           '<label>구분<select data-k="type"><option value="">—</option><option>TRC</option><option>MRC</option></select></label>' +
           '<label>영역<select data-k="area"><option value="">—</option><option>발생 (Occurrence)</option><option>유출 (Non-Detection)</option></select></label>' +
         '</div>' +
-        '<label class="d6-full">조치 내용<textarea data-k="action" rows="2" placeholder="실행한 시정 조치"></textarea></label>' +
+        '<label class="d6-full">조치 내용<textarea data-k="action" rows="1" placeholder="실행한 시정 조치"></textarea></label>' +
         '<div class="d6-row d6-r3">' +
           '<label>담당<input data-k="owner" /></label>' +
           '<label>완료 예정<input data-k="due" placeholder="2026-08-12 / [확인]" /></label>' +
           '<label>완료일<input data-k="done" placeholder="2026-08-12 / [확인]" /></label>' +
         '</div>' +
-        '<label class="d6-full">검증 결과<textarea data-k="result" rows="2" placeholder="달성 여부 확인: 지표"></textarea></label>';
+        '<label class="d6-full">검증 결과<textarea data-k="result" rows="1" placeholder="달성 여부 확인: 지표"></textarea></label>';
       card.querySelectorAll('[data-k]').forEach((el) => {
         const k = el.dataset.k;
         el.value = item[k] || '';
@@ -152,7 +152,6 @@
           Store.touch();
           afterChange();
         });
-        if (el.tagName === 'TEXTAREA') autoGrow(el);
       });
       card.querySelector('.del').addEventListener('click', () => {
         list.splice(idx, 1);
@@ -161,6 +160,7 @@
         afterChange();
       });
       wrap.appendChild(card);
+      card.querySelectorAll('textarea').forEach(autoGrow); // 카드가 DOM에 붙은 뒤 크기 조정
     });
   }
 

@@ -301,13 +301,20 @@
     if ((r.d6 || []).length) {
       const d6En = (r.i18n && Array.isArray(r.i18n.d6)) ? r.i18n.d6 : [];
       const anyClass = r.d6.some((x) => (x.type || '').trim() || (x.area || '').trim());
-      h += '<table><tr>' +
-        (anyClass ? '<th>' + L('구분') + '</th><th>' + L('영역') + '</th>' : '') +
-        '<th style="width:auto">' + L('조치 내용') + '</th><th>' + L('담당') + '</th><th>' + L('완료예정') + '</th><th>' + L('완료일') + '</th><th>' + L('검증 결과') + '</th></tr>' +
+      const areaTxt = (a) => (lang === 'ko' ? (a || '') : T(a || ''));
+      h += '<table class="d6-doc"><tr>' +
+        (anyClass ? '<th style="width:78px">' + L('구분') + ' / ' + L('영역') + '</th>' : '') +
+        '<th>' + L('조치 내용') + '</th>' +
+        '<th style="width:64px">' + L('담당') + '</th>' +
+        '<th style="width:92px">' + L('완료예정') + ' / ' + L('완료일') + '</th>' +
+        '<th style="width:26%">' + L('검증 결과') + '</th></tr>' +
         r.d6.map((x, i) => {
           const e = d6En[i] || {};
-          const cls = anyClass ? '<td>' + esc(x.type || '') + '</td><td>' + (lang === 'ko' ? esc(x.area || '') : esc(T(x.area || ''))) + '</td>' : '';
-          return '<tr>' + cls + '<td>' + tv(x.action, e.action) + '</td><td>' + tv(x.owner, e.owner) + '</td><td>' + val(x.due) + '</td><td>' + val(x.done) + '</td><td>' + tv(x.result, e.result) + '</td></tr>';
+          const cls = anyClass
+            ? '<td>' + (x.type ? '<b>' + esc(x.type) + '</b>' : '') + (x.area ? '<br>' + esc(areaTxt(x.area)) : '') + '</td>'
+            : '';
+          const dates = [x.due ? esc(x.due) : '', x.done ? esc(x.done) : ''].filter(Boolean).join('<br>') || '<span class="empty">—</span>';
+          return '<tr>' + cls + '<td>' + tv(x.action, e.action) + '</td><td>' + tv(x.owner, e.owner) + '</td><td>' + dates + '</td><td>' + tv(x.result, e.result) + '</td></tr>';
         }).join('') +
         '</table>';
     }
