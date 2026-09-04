@@ -289,10 +289,25 @@ details.d8[open] > summary::after{transform:rotate(90deg)}
 }
 details.d8 > .grid,details.d8 > .mini-table,details.d8 > .why-chain,
 details.d8 > .doc-check,details.d8 > button,details.d8 > h3,details.d8 > .marker-echo,
-details.d8 > .mini-table-scroll,
+details.d8 > .mini-table-scroll,details.d8 > .d6-list,
 details.d8 > p{margin-left:18px;margin-right:18px}
 .mini-table-scroll{overflow-x:auto;margin:8px 0}
 .mini-table-wide{min-width:720px}
+
+/* D6 시정 조치 카드 */
+.d6-list{display:flex;flex-direction:column;gap:12px;margin:10px 0}
+.d6-card{border:1px solid var(--line);border-radius:12px;background:#fcfcfd;padding:12px 14px 14px}
+.d6-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.d6-card .d6-no{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:7px;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:800}
+.d6-card .del{border:0;background:#f1f2f6;border-radius:7px;padding:5px 9px;font-size:12px;color:var(--ink-soft);cursor:pointer}
+.d6-card .del:hover{background:#fde2e4;color:var(--danger)}
+.d6-card > label,.d6-card .d6-row > label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:var(--ink-soft);margin-bottom:8px}
+.d6-card input,.d6-card select,.d6-card textarea{border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:12.5px;background:#fff;color:var(--ink);font-family:inherit;width:100%;min-width:0}
+.d6-card textarea{resize:none;overflow:hidden;line-height:1.5;min-height:36px}
+.d6-row{display:grid;gap:10px}
+.d6-r2{grid-template-columns:140px 1fr}
+.d6-r3{grid-template-columns:1.2fr 1fr 1fr}
+@media (max-width:640px){.d6-r2,.d6-r3{grid-template-columns:1fr}}
 details.d8 > *:last-child{margin-bottom:18px}
 details.d8 .grid{margin-top:4px}
 

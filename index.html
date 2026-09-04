@@ -324,13 +324,8 @@
 
     <details class="d8 card">
       <summary><span class="d8-tag">D6</span> 시정 조치 실행 &amp; 검증</summary>
-      <p class="hint">구분 — <b>TRC</b>: 기술적 시정조치(Technical) / <b>MRC</b>: 관리적 시정조치(Managerial). 영역 — <b>발생(Occurrence)</b> / <b>유출(Non-Detection)</b>. 고객 8D 양식에 맞춰 각 조치를 분류하세요.</p>
-      <div class="mini-table-scroll">
-        <table class="mini-table mini-table-wide" id="d6Table">
-          <thead><tr><th style="width:64px">구분</th><th style="width:130px">영역</th><th>조치 내용</th><th>담당</th><th>완료 예정</th><th>완료일</th><th>검증 결과</th><th></th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <p class="hint">구분 — <b>TRC</b>: 기술적 시정조치(설비·금형·공정조건·Poka-Yoke) / <b>MRC</b>: 관리적 시정조치(표준서 개정·교육·전담자 지정). 영역 — <b>발생(Occurrence)</b> / <b>유출(Non-Detection)</b>. 발생·유출 각각 TRC/MRC 조치를 행으로 나눠 적으면 고객 8D 양식에 맞습니다. AI 분석에서 «D6» 구획을 체크하면 자동 작성됩니다.</p>
+      <div class="d6-list" id="d6List"></div>
       <button class="btn btn-ghost" data-add-row="d6">＋ 조치 항목 추가</button>
       <div class="grid">
         <label>양산 적용일<input type="date" data-field="d6_massdate" /></label>

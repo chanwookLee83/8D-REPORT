@@ -111,15 +111,59 @@
   const TABLE_DEFS = {
     d1: { key: 'd1', cols: [['name', 'text'], ['dept', 'text'], ['role', 'text']], blank: () => ({ name: '', dept: '', role: '' }) },
     d6: {
-      key: 'd6',
-      cols: [
-        ['type', 'select', ['', 'TRC', 'MRC']],
-        ['area', 'select', AREA_OPTS],
-        ['action', 'text'], ['owner', 'text'], ['due', 'date'], ['done', 'date'], ['result', 'text'],
-      ],
+      key: 'd6', layout: 'card',
       blank: () => ({ type: '', area: '', action: '', owner: '', due: '', done: '', result: '' }),
     },
   };
+  function refreshTable(name) {
+    if (TABLE_DEFS[name] && TABLE_DEFS[name].layout === 'card') return renderD6();
+    return renderTable(name);
+  }
+
+  /* D6 시정 조치 — 입력하기 쉬운 카드형 */
+  function renderD6() {
+    const wrap = $('#d6List');
+    if (!wrap) return;
+    const list = Store.current().d6 || (Store.current().d6 = []);
+    wrap.innerHTML = '';
+    list.forEach((item, idx) => {
+      const card = document.createElement('div');
+      card.className = 'd6-card';
+      card.innerHTML =
+        '<div class="d6-card-head"><span class="d6-no">' + (idx + 1) + '</span><button type="button" class="del" title="삭제">×</button></div>' +
+        '<div class="d6-row d6-r2">' +
+          '<label>구분<select data-k="type"><option value="">—</option><option>TRC</option><option>MRC</option></select></label>' +
+          '<label>영역<select data-k="area"><option value="">—</option><option>발생 (Occurrence)</option><option>유출 (Non-Detection)</option></select></label>' +
+        '</div>' +
+        '<label class="d6-full">조치 내용<textarea data-k="action" rows="2" placeholder="실행한 시정 조치"></textarea></label>' +
+        '<div class="d6-row d6-r3">' +
+          '<label>담당<input data-k="owner" /></label>' +
+          '<label>완료 예정<input data-k="due" placeholder="2026-08-12 / [확인]" /></label>' +
+          '<label>완료일<input data-k="done" placeholder="2026-08-12 / [확인]" /></label>' +
+        '</div>' +
+        '<label class="d6-full">검증 결과<textarea data-k="result" rows="2" placeholder="달성 여부 확인: 지표"></textarea></label>';
+      card.querySelectorAll('[data-k]').forEach((el) => {
+        const k = el.dataset.k;
+        el.value = item[k] || '';
+        const evt = el.tagName === 'SELECT' ? 'change' : 'input';
+        el.addEventListener(evt, () => {
+          item[k] = el.value;
+          if (el.tagName === 'TEXTAREA') autoGrow(el);
+          Store.touch();
+          afterChange();
+        });
+        if (el.tagName === 'TEXTAREA') autoGrow(el);
+      });
+      card.querySelector('.del').addEventListener('click', () => {
+        list.splice(idx, 1);
+        Store.touch();
+        renderD6();
+        afterChange();
+      });
+      wrap.appendChild(card);
+    });
+  }
+
   function renderTable(name) {
     const def = TABLE_DEFS[name];
     const tbody = $('#' + name + 'Table tbody');
@@ -128,33 +172,16 @@
     tbody.innerHTML = '';
     list.forEach((item, idx) => {
       const tr = document.createElement('tr');
-      def.cols.forEach(([c, type, opts]) => {
+      def.cols.forEach(([c, type]) => {
         const td = document.createElement('td');
-        let inp;
-        if (type === 'select') {
-          inp = document.createElement('select');
-          (opts || []).forEach((o) => {
-            const op = document.createElement('option');
-            op.value = o;
-            op.textContent = o || '—';
-            inp.appendChild(op);
-          });
-          inp.value = item[c] || '';
-          inp.addEventListener('change', () => {
-            item[c] = inp.value;
-            Store.touch();
-            afterChange();
-          });
-        } else {
-          inp = document.createElement('input');
-          inp.type = type;
-          inp.value = item[c] || '';
-          inp.addEventListener('input', () => {
-            item[c] = inp.value;
-            Store.touch();
-            afterChange();
-          });
-        }
+        const inp = document.createElement('input');
+        inp.type = type;
+        inp.value = item[c] || '';
+        inp.addEventListener('input', () => {
+          item[c] = inp.value;
+          Store.touch();
+          afterChange();
+        });
         td.appendChild(inp);
         tr.appendChild(td);
       });
@@ -179,7 +206,7 @@
         const name = btn.dataset.addRow;
         Store.current()[TABLE_DEFS[name].key].push(TABLE_DEFS[name].blank());
         Store.touch();
-        renderTable(name);
+        refreshTable(name);
         afterChange();
       });
     });
@@ -224,7 +251,7 @@
     fillFields();
     renderWhy();
     renderTable('d1');
-    renderTable('d6');
+    renderD6();
     renderD7Docs();
     Annotate.load();
     Fishbone.load();

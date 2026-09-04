@@ -118,6 +118,17 @@
       occur: ['Why1', 'Why2', 'Why3', 'Why4', 'Why5', '근본원인(검증 대상)'],
       escape: ['Why1', 'Why2', 'Why3', 'Why4', 'Why5', '근본원인(검증 대상)'],
     },
+    d6_actions: [
+      {
+        type: 'TRC | MRC (기술적/관리적 시정조치)',
+        area: '발생 | 유출',
+        action: 'D5 대책을 실행 단위로 나눈 시정 조치 (종결형 평서문)',
+        owner: '담당 (인명 미확정이면 [확인])',
+        due: '완료 예정일 ([확인])',
+        done: '완료일 ([확인])',
+        result: '검증 결과 — "달성 여부 확인:" + 지표',
+      },
+    ],
     fishbone: {
       man: ['원인', '원인'],
       machine: ['원인', '원인'],
@@ -137,7 +148,7 @@
     d3: { label: 'D3 봉쇄(임시) 조치', fields: ['d3_action', 'd3_result', 'd3_verify'] },
     d4: { label: 'D4 근본 원인 + 5-Why', fields: ['d4_occur', 'd4_escape', 'd4_verify'], why: true },
     d5: { label: 'D5 영구 시정 대책', fields: ['d5_occur', 'd5_escape', 'd5_risk', 'd5_basis'] },
-    d6: { label: 'D6 효과 검증', fields: ['d6_effect'] },
+    d6: { label: 'D6 시정 조치 실행·검증 (조치 표 + 효과 검증)', fields: ['d6_effect'], d6actions: true },
     d7: { label: 'D7 표준화·수평 전개', fields: ['d7_lesson', 'd7_std'] },
     d8: { label: 'D8 종결', fields: ['d8_closing'] },
     fishbone: { label: '특성요인도 (6M)', fishbone: true },
@@ -165,6 +176,7 @@
     });
     if (Object.keys(fields).length) out.fields = fields;
     if (set.has('d4')) out.why = SHAPE_HINT.why;
+    if (set.has('d6')) out.d6_actions = SHAPE_HINT.d6_actions;
     if (set.has('fishbone')) out.fishbone = SHAPE_HINT.fishbone;
     out.notes = SHAPE_HINT.notes;
     return out;
@@ -184,6 +196,7 @@
       fishbone: set.has('fishbone'),
       regions: set.has('overview'),
       overview: set.has('overview'),
+      d6: set.has('d6'),
     };
   }
 
@@ -258,6 +271,7 @@
       '- 검증 항목(d3_verify·d4_verify·d6_effect)은 "달성 여부 확인:" 으로 시작하고 판정 지표·목표치를 제시합니다.',
       '- 불량 유형 입력값 또는 표시 영역 내용이 있으면 그것을 확정으로 삼고 원인·대책을 전개합니다.',
       sc.indexOf('d4') >= 0 ? '- why.occur / why.escape 는 각 6개 항목(Why1~5 + 근본원인). 앞 단계의 답이 다음 "왜?"의 전제가 되도록 인과로 연결합니다.' : '',
+      sc.indexOf('d6') >= 0 ? '- d6_actions 는 D5 대책을 실행 단위로 나눈 배열(보통 3~6개). 각 항목: type 은 "TRC"(설비·금형·공정조건·Poka-Yoke 등 기술적) 또는 "MRC"(표준서 개정·교육·전담자 지정 등 관리적), area 는 "발생" 또는 "유출", action 은 종결형 평서문, owner·due·done 은 미확정이면 "[확인]", result 는 "달성 여부 확인:" 형식. 발생·유출 각각 최소 1개씩 포함.' : '',
       sc.indexOf('fishbone') >= 0 ? '- fishbone 은 6M(man·machine·material·method·measure·env) 카테고리별 원인 2~4개.' : '',
       sc.indexOf('overview') >= 0 ? '- regions.box 는 좌상단 (0,0) ~ 우하단 (1,1) 정규화 [x, y, w, h]. 표시 영역이 이미 있거나 표시할 것이 없으면 빈 배열.' : '',
       '- 날짜·수량·LOT·인명은 지어내지 말고 해당 자리에 "[확인]" 표기.',

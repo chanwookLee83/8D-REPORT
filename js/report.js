@@ -554,6 +554,27 @@
 
     if (okField('defectDesc') && !(fields.defectDesc || '').trim()) setField('defectDesc', result.defect_summary);
 
+    // D6 조치 표 — AI가 d6_actions 배열을 내면 표 전체를 교체
+    if ((!allow || allow.d6) && Array.isArray(result.d6_actions)) {
+      const normType = (v) => (String(v || '').toUpperCase().indexOf('MRC') >= 0 ? 'MRC'
+        : String(v || '').toUpperCase().indexOf('TRC') >= 0 ? 'TRC' : '');
+      const normArea = (v) => {
+        const s = String(v || '').toLowerCase();
+        if (s.indexOf('발생') >= 0 || s.indexOf('occur') >= 0) return '발생 (Occurrence)';
+        if (s.indexOf('유출') >= 0 || s.indexOf('non') >= 0 || s.indexOf('detect') >= 0) return '유출 (Non-Detection)';
+        return '';
+      };
+      const st = (v) => String(v == null ? '' : v).trim();
+      const d6rows = result.d6_actions
+        .map((a) => ({
+          type: normType(a && a.type), area: normArea(a && a.area),
+          action: st(a && a.action), owner: st(a && a.owner),
+          due: st(a && a.due), done: st(a && a.done), result: st(a && a.result),
+        }))
+        .filter((row) => row.action);
+      if (d6rows.length) { target.d6 = d6rows; filled += d6rows.length; }
+    }
+
     // 5-Why (발생/유출) — AI가 배열을 내면 해당 채널 전체를 덮어씀
     const w = (!allow || allow.why) ? (result.why || {}) : {};
     if (!target.why) target.why = { occur: ['', '', '', '', '', ''], escape: ['', '', '', '', '', ''] };
