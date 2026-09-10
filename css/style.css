@@ -249,10 +249,31 @@ textarea{resize:vertical}
 .marker-row textarea{flex:1;min-height:40px}
 .marker-row .del{border:0;background:#f1f2f6;color:var(--ink-soft);border-radius:8px;padding:8px 10px;font-size:12px}
 
-.ref-grid,.marker-echo{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
-.ref-grid figure{margin:0;position:relative}
-.ref-grid img{width:100%;border-radius:10px;border:1px solid var(--line)}
-.ref-grid button{position:absolute;top:6px;right:6px;border:0;background:rgba(0,0,0,.55);color:#fff;border-radius:6px;padding:2px 7px;font-size:11px}
+.ref-grid,.marker-echo{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-top:12px}
+.ref-grid figure{margin:0;position:relative;display:flex;flex-direction:column;gap:5px}
+.ref-grid img{width:100%;border-radius:10px;border:1px solid var(--line);aspect-ratio:4/3;object-fit:cover}
+.ref-grid .ref-del{position:absolute;top:6px;right:6px;border:0;background:rgba(0,0,0,.6);color:#fff;border-radius:6px;padding:2px 7px;font-size:12px;cursor:pointer}
+.ref-grid .ref-kind{border:1px solid var(--line);border-radius:8px;padding:5px 7px;font-size:11.5px;background:#fcfcfd;color:var(--ink);width:100%;font-family:inherit}
+.ref-grid .ref-note{border:1px solid var(--line);border-radius:8px;padding:5px 7px;font-size:11.5px;background:#fcfcfd;color:var(--ink);width:100%;font-family:inherit}
+
+.ok-photo-box{margin-top:12px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.ok-photo-box img{max-width:280px;border-radius:10px;border:1px solid var(--line)}
+
+/* 부품 유형 선택 바 */
+.ai-parttype{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin-bottom:10px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px}
+.ai-parttype > label{font-size:12px;font-weight:800;color:var(--accent);flex:none}
+.ai-parttype select{border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12.5px;background:#fff;color:var(--ink);font-family:inherit}
+.ai-parttype .hint{flex:1 1 100%;margin:0}
+
+/* 측정값 입력 */
+.aux-measures{border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
+.aux-measures-head{font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px}
+.aux-measures-head .hint{font-weight:400;display:block;margin-top:2px}
+.measure-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.measure-row{display:grid;grid-template-columns:1.1fr 1fr 1fr 64px 28px;gap:6px;align-items:center}
+.measure-row input,.measure-row select{border:1px solid var(--line);border-radius:8px;padding:7px 8px;font-size:12px;background:#fff;color:var(--ink);font-family:inherit;min-width:0;width:100%}
+.measure-row .del{border:0;background:#f1f2f6;border-radius:7px;padding:6px 0;font-size:12px;color:var(--ink-soft);cursor:pointer}
+@media (max-width:600px){.measure-row{grid-template-columns:1fr 1fr;grid-auto-rows:auto}.measure-row .del{grid-column:2}}
 .marker-echo{grid-template-columns:1fr}
 .marker-echo .mk{display:flex;gap:8px;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)}
 .marker-echo .mk b{color:var(--danger)}
@@ -406,6 +427,7 @@ details.d8 .grid{margin-top:4px}
 .report-doc .two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .report-doc .photo-block{margin:10px 0}
 .report-doc .photo-block img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+.report-doc .photo-cap{font-size:11px;font-weight:700;color:var(--ink-soft);margin-bottom:4px}
 .report-doc .mk-list{font-size:12px;margin:6px 0;padding-left:18px}
 .report-doc .fb-diagram{min-width:0}
 .report-doc .why-box{font-size:12px;background:#f7f8fa;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0}

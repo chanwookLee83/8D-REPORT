@@ -205,7 +205,7 @@
   }
 
   function auxLines(fields) {
-    return [
+    const rows = [
       ['부품 유형(지정)', fields.aux_partType],
       ['발생 추세', fields.aux_trend],
       ['금형·호기/캐비티·설비', fields.aux_equip],
@@ -217,8 +217,24 @@
       ['되묻기 답변', fields.aux_answers],
     ]
       .filter(([, v]) => (v == null ? '' : String(v)).trim())
-      .map(([k, v]) => '- ' + k + ': ' + String(v).trim())
-      .join('\n');
+      .map(([k, v]) => '- ' + k + ': ' + String(v).trim());
+    const ms = (fields._measures || '').trim();
+    if (ms) rows.push('- 측정값 (규격 / 실측):\n' + ms.split('\n').map((l) => '  ' + l).join('\n'));
+    return rows.join('\n');
+  }
+
+  /* 지정된 부품 유형 → 사용할 원인 계통 지시문 */
+  function partTypeDirective(pt) {
+    const s = (pt || '').trim();
+    if (!s) return '';
+    const asm = s.indexOf('조립') >= 0;
+    const inj = s.indexOf('사출') >= 0;
+    let body;
+    if (asm && inj) body = '사출·조립 복합. 각 현상을 사출(A) 또는 조립(B) 해당 계통으로 귀속해 분석하세요.';
+    else if (asm) body = '조립품. 표준 원인 계통 B(조립)의 메커니즘만 사용: 삽입력·체결 토크·압입 하중/변위·정렬 지그 마모·2단 래치(클릭) 확인·도통/삽입깊이 검사·상대 부품/하네스 로트 수준으로 원인·대책을 전개하고, 사출 파라미터(사출압·보압·수지온도)는 언급하지 마세요.';
+    else if (inj) body = '사출 성형품. 표준 원인 계통 A(사출)의 메커니즘만 사용: 사출압·보압·수지온도·금형온도·게이트·벤트·냉각·수축·금형 마모 수준으로 전개하고, 조립 파라미터는 언급하지 마세요.';
+    else body = s;
+    return '## 부품 유형 (작성자 지정 — 반드시 이 계통으로만 분석)\n- ' + s + '\n- ' + body;
   }
 
   function buildPrompt(fields, markers, imgCount, observations, scope) {
@@ -241,6 +257,7 @@
       : '- (표시 영역 없음)';
 
     const aux = auxLines(fields);
+    const ptd = partTypeDirective(fields.aux_partType);
 
     return [
       '## 기본 정보',
@@ -250,6 +267,8 @@
       mk,
       '',
     ].concat(
+      ptd ? [ptd, ''] : []
+    ).concat(
       aux ? ['## 보조 정보 — 작성자 제공 (사실로 신뢰. 근본원인·대책을 이 값에 맞춰 구체화)', aux, ''] : []
     ).concat(
       observations && observations.trim()
@@ -259,13 +278,13 @@
       DOMAIN,
       '',
       '## 요청',
-      '첨부한 ' + (imgCount ? imgCount + '장의 ' : '') + '이미지(전체 사진의 빨간 박스·번호 = 위 표시 영역, 이어지는 확대 크롭은 각 표시 영역, 마지막 참고 사진)와 위 정보를 근거로, 실제 제출용 8D 대책서를 아래 형태의 JSON 객체 하나로 출력하세요.',
+      '첨부한 ' + (imgCount ? imgCount + '장의 ' : '') + '이미지는 각 [이미지 N] 라벨을 확인하세요: 전체 불량 사진(빨간 박스·번호=표시 영역) → 표시 영역 확대 크롭 → (있으면) 양품(OK) 기준 사진 → 유형별 참고 사진(측면·후면·분해·상대 부품 결합·게이지 측정 등). 양품 사진이 있으면 불량품과의 "차이"를 근거로 분석하고, 참고 사진의 유형 라벨을 활용해 다각도로 판독하세요.',
       partial
         ? '★ 이번 분석 대상 구획: ' + scopeLabels(sc) + '. 아래 JSON 형태에 있는 키만 작성하고, 그 외 항목은 JSON에서 완전히 생략하세요.'
         : '',
       JSON.stringify(shapeForScope(sc), null, 2),
       '',
-      '- 먼저 부품 유형(사출 성형품 / 조립품)을 판정하고 그 계통으로 원인·대책을 전개합니다.',
+      ptd ? '- 부품 유형은 위에 지정됨. 그 계통으로만 원인·대책을 전개합니다.' : '- 먼저 부품 유형(사출 성형품 / 조립품)을 판정하고 그 계통으로 원인·대책을 전개합니다.',
       '- 위 JSON 형태에 포함된 fields 항목만 채우되, 설명서·지침 말투("~해야 합니다")가 아니라 이미 수행·확정한 조치를 기술하는 종결형 평서문("~함", "~재설정함", "~로 확인됨")으로 씁니다.',
       '- 각 항목 1~3문장, 군더더기 없이 간결하게. 원인·대책은 공정 파라미터·검사 기준 수준으로 단정합니다.',
       '- 검증 항목(d3_verify·d4_verify·d6_effect)은 "달성 여부 확인:" 으로 시작하고 판정 지표·목표치를 제시합니다.',
@@ -388,20 +407,23 @@
     const mk = (markers && markers.length)
       ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
       : '- (표시 영역 없음)';
+    const pt = (fields.aux_partType || '').trim();
     return [
       '## 정보',
       '- 부품명: ' + (fields.partName || '(미입력)'),
       '- 불량 유형(입력값): ' + (fields.defectType || '(미입력)'),
       '- 발생 공정: ' + (fields.defectProcess || '(미입력)'),
+      pt ? '- 부품 유형(지정): ' + pt : '',
       '',
       '## 표시 영역 (작업자 표기)',
       mk,
       '',
       '## 요청',
-      '첨부한 ' + imgCount + '장의 이미지를 관찰해, 다음을 불릿으로 정리하세요. (8D·대책 금지)',
-      '- 부품 유형 판단: 사출 성형품 / 조립품 / 복합 중 무엇으로 보이는지와 근거',
-      '- 표시 영역별 관찰: 불량 형태(크랙·변형·미성형·이물·버·단차 등), 위치·방향·범위, 표면 상태',
-      '- 주변 형상과의 관계 (게이트/웰드라인/파팅면/리브/보스/체결부/단자/커넥터 등)',
+      '첨부한 ' + imgCount + '장의 이미지([이미지 N] 라벨 확인: 전체 → 확대 크롭 → 양품 기준 → 유형별 참고)를 관찰해, 다음을 불릿으로 정리하세요. (8D·대책 금지)',
+      pt ? '- 지정된 부품 유형(' + pt + ') 기준으로 관찰' : '- 부품 유형 판단: 사출 성형품 / 조립품 / 복합 중 무엇으로 보이는지와 근거',
+      '- 표시 영역별 관찰: 불량 형태(크랙·변형·미성형·이물·버·단차·눌림·미체결 등), 위치·방향·범위, 표면 상태',
+      '- 양품(OK) 기준 사진이 있으면 불량품과의 차이점',
+      '- 주변 형상과의 관계 (게이트/웰드라인/파팅면/리브/보스/체결부/단자/커넥터/걸림부 등)',
       '- 사진으로는 알 수 없어 실측·이력 확인이 필요한 항목',
     ].join('\n');
   }
@@ -424,12 +446,19 @@
       ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
       : '- (표시 영역 없음)';
     const aux = auxLines(fields);
+    const pt = (fields.aux_partType || '').trim();
+    const focus = pt.indexOf('조립') >= 0
+      ? '조립품이므로 삽입력·정렬 지그 마모/점검주기·2단 래치(클릭) 확인 방법·압입 하중-변위 프로파일·도통/삽입깊이 검사·상대 부품과 하네스 로트·최근 지그 교체 이력을 중심으로 질문하세요.'
+      : pt.indexOf('사출') >= 0
+        ? '사출 성형품이므로 성형조건 실측값과 최근 변경 이력·금형 상태(마모·벤트·게이트)·재료 건조·수분·재생재 비율·특정 캐비티 편중을 중심으로 질문하세요.'
+        : '';
     return [
       '## 정보',
       '- 부품명: ' + (fields.partName || '(미입력)'),
       '- 불량 유형(입력값): ' + (fields.defectType || '(미입력)'),
       '- 발생 공정: ' + (fields.defectProcess || '(미입력)'),
       '- 불량 현상 상세: ' + (fields.defectDesc || '(미입력)'),
+      pt ? '- 부품 유형(지정): ' + pt : '',
       '',
       '## 표시 영역 (작업자 표기)',
       mk,
@@ -437,6 +466,7 @@
       aux ? '## 이미 제공된 보조 정보 (이 내용은 다시 묻지 마세요)\n' + aux + '\n' : '',
       '## 요청',
       '첨부한 ' + imgCount + '장의 이미지와 위 정보를 보고, 근본원인(D4)·재발방지(D5)를 정확히 확정하기 위해 작성자에게 물어야 할 핵심 질문만 3~6개 뽑아 JSON 으로 출력하세요: {"questions": ["...", "..."]}',
+      focus,
     ].join('\n');
   }
 
@@ -627,7 +657,7 @@
       '위와 동일한 키·배열 구조의 JSON 하나. 모든 값을 영문으로 (fields 의 회사·인명·설비·부서·역할 포함, 하나도 빠뜨리지 말 것).',
       'why.occur / why.escape 는 배열 길이(6)·순서 유지(빈 문자열도 그대로).',
       'fishbone.cats 각 원인은 {"text": "...", "subs": ["..."]} 형태·배열 길이·순서 유지.',
-      'd1 은 [{"name","dept","role"}], d6 은 [{"action","owner","result"}] 배열 길이·순서 유지.',
+      'd1 은 [{"name","dept","role"}], d6 은 [{"action","owner","result"}], measures 는 [{"item"}] 배열 길이·순서 유지.',
     ].join('\n');
     const out = await streamMessages([{ type: 'text', text: text }], TRANSLATE_SYSTEM, 16000);
     return extractJSON(out.text);

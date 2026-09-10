@@ -229,7 +229,20 @@
     </div>
 
     <div class="card">
+      <h2>양품(OK) 기준 사진 (선택)</h2>
+      <p class="hint">불량품과 같은 부위의 <b>정상 제품</b> 사진. AI가 불량품과 대비 분석합니다. 조립 불량 판독에 특히 도움됩니다.</p>
+      <label class="file-btn">양품 사진 선택
+        <input type="file" id="okPhotoInput" accept="image/*" hidden />
+      </label>
+      <div id="okPhotoBox" class="ok-photo-box" hidden>
+        <img id="okPhotoImg" alt="양품 기준 사진" />
+        <button type="button" id="okPhotoClear" class="btn btn-ghost danger">양품 사진 삭제</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>참고 사진 (선택)</h2>
+      <p class="hint">각 사진의 <b>유형</b>을 지정하면 AI가 다각도로 정확히 판독합니다. (측면·후면·분해·상대 부품 결합·게이지 측정 등)</p>
       <label class="file-btn">참고 사진 추가
         <input type="file" id="refPhotoInput" accept="image/*" multiple hidden />
       </label>
@@ -382,6 +395,13 @@
   <!-- ===================== AI 분석 · 미리보기 / 출력 ===================== -->
   <section class="panel" data-panel="preview">
     <h2 class="panel-head no-print">🤖 AI 분석 · 작성</h2>
+    <div class="ai-parttype no-print">
+      <label for="aux_partType">부품 유형 선택</label>
+      <select id="aux_partType" data-field="aux_partType">
+        <option value="">자동 판정 (AI가 사진으로 구분)</option>
+      </select>
+      <span class="hint" id="partTypeHint"></span>
+    </div>
     <div class="preview-actions no-print">
       <button id="aiPhotoBtn" class="btn btn-ai">📷 AI 8D 분석·작성</button>
       <button id="aiClarifyBtn" class="btn btn-ghost">❓ 먼저 질문받기</button>
@@ -421,14 +441,6 @@
     <details class="ai-settings no-print" id="aiAux">
       <summary>🧩 AI 분석 보조 정보 <span class="ai-aux-hint">(선택 · 채울수록 근본원인 분석이 정확해집니다)</span></summary>
       <div class="ai-settings-body">
-        <label>부품 유형
-          <select data-field="aux_partType">
-            <option value="">자동 판정</option>
-            <option>플라스틱 사출 성형품</option>
-            <option>조립품 (압입·나사·용착·클립·커넥터)</option>
-            <option>사출 + 조립 복합</option>
-          </select>
-        </label>
         <label>발생 추세
           <textarea data-field="aux_trend" rows="2" placeholder="예: 초물 집중 / 특정 시간대(오전 교대 직후) / 3호기·2번 캐비티만 / 특정 작업자 / 연속 발생"></textarea>
         </label>
@@ -448,9 +460,18 @@
           <textarea data-field="aux_history" rows="2" placeholder="동일/유사 불량 과거 발생 여부, 8D 번호, 당시 대책, 재발이면 그 사유"></textarea>
         </label>
         <label>기타 특이사항
-          <textarea data-field="aux_extra" rows="2" placeholder="고객 특별 요구, 측정 데이터, 현장 관찰 등"></textarea>
+          <textarea data-field="aux_extra" rows="2" placeholder="고객 특별 요구, 현장 관찰 등"></textarea>
         </label>
-        <p class="hint">여기 입력한 내용은 AI 분석 시에만 근거로 사용되며, 대책서 본문에는 그대로 인쇄되지 않습니다.</p>
+
+        <div class="aux-measures">
+          <div class="aux-measures-head">측정값 (규격 vs 실측)
+            <span class="hint">삽입 깊이 · 도통 저항 · 체결 토크 · 압입 하중 · 치수 등</span>
+          </div>
+          <div id="measureList" class="measure-list"></div>
+          <button type="button" class="btn btn-ghost" id="measureAdd">＋ 측정 항목</button>
+        </div>
+
+        <p class="hint">여기 입력한 내용은 AI 분석 시에만 근거로 사용되며, 대책서에는 «측정 데이터» 표로만 출력됩니다.</p>
       </div>
     </details>
     <details class="ai-settings no-print" id="aiSettings">

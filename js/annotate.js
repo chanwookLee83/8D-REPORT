@@ -313,21 +313,43 @@
     return (t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   }
 
-  /* ---- 참고 사진 ---- */
+  /* ---- 양품(OK) 기준 사진 ---- */
+  function renderOkPhoto() {
+    const box = document.getElementById('okPhotoBox');
+    const im = document.getElementById('okPhotoImg');
+    if (!box || !im) return;
+    const url = Store.current().okPhoto || '';
+    if (url) { im.src = url; box.hidden = false; } else { im.removeAttribute('src'); box.hidden = true; }
+  }
+
+  /* ---- 참고 사진 (유형·설명 라벨 포함) ---- */
+  function refEntry(e) {
+    return (typeof e === 'string') ? { url: e, kind: '', note: '' } : e;
+  }
   function renderRefs() {
     const grid = document.getElementById('refPhotoGrid');
     if (!grid) return;
     const list = Store.current().refPhotos;
     grid.innerHTML = '';
-    list.forEach((src, i) => {
+    list.forEach((raw, i) => {
+      const e = list[i] = refEntry(raw);
       const fig = document.createElement('figure');
-      fig.innerHTML = '<img src="' + src + '" alt="참고 사진 ' + (i + 1) + '"><button>×</button>';
-      fig.querySelector('button').addEventListener('click', () => {
+      const opts = ['<option value="">유형 미지정</option>']
+        .concat((Store.REF_KINDS || []).map((k) => '<option' + (e.kind === k ? ' selected' : '') + '>' + k + '</option>'))
+        .join('');
+      fig.innerHTML =
+        '<img src="' + e.url + '" alt="참고 사진 ' + (i + 1) + '">' +
+        '<button class="ref-del" title="삭제">×</button>' +
+        '<select class="ref-kind">' + opts + '</select>' +
+        '<input class="ref-note" placeholder="설명 (예: 단자 3번 결합부)" value="' + esc(e.note || '') + '">';
+      fig.querySelector('.ref-del').addEventListener('click', () => {
         list.splice(i, 1);
         Store.touch();
         renderRefs();
         onChange();
       });
+      fig.querySelector('.ref-kind').addEventListener('change', (ev) => { e.kind = ev.target.value; Store.touch(); onChange(); });
+      fig.querySelector('.ref-note').addEventListener('input', (ev) => { e.note = ev.target.value; Store.touch(); onChange(); });
       grid.appendChild(fig);
     });
   }
@@ -365,7 +387,7 @@
       let left = files.length;
       files.forEach((f) =>
         fileToImage(f, (url) => {
-          Store.current().refPhotos.push(url);
+          Store.current().refPhotos.push({ url: url, kind: '', note: '' });
           if (--left === 0) {
             Store.touch();
             renderRefs();
@@ -374,6 +396,26 @@
         })
       );
       e.target.value = '';
+    });
+
+    const okInput = document.getElementById('okPhotoInput');
+    if (okInput) okInput.addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      fileToImage(f, (url) => {
+        Store.current().okPhoto = url;
+        Store.touch();
+        renderOkPhoto();
+        onChange();
+      });
+      e.target.value = '';
+    });
+    const okClear = document.getElementById('okPhotoClear');
+    if (okClear) okClear.addEventListener('click', () => {
+      Store.current().okPhoto = '';
+      Store.touch();
+      renderOkPhoto();
+      onChange();
     });
 
     toolbar.querySelectorAll('[data-tool]').forEach((b) =>
@@ -408,29 +450,32 @@
       render();
       renderMarkers();
       renderRefs();
+      renderOkPhoto();
     });
   }
 
   /* 사진·표시·참고사진 상태를 완전히 비운다 (신규 대책서 시작 시) */
   function reset() {
+    const cur0 = Store.current();
     const p = photo();
     p.base = '';
     p.shapes = [];
-    const rp = Store.current().refPhotos;
-    if (Array.isArray(rp)) rp.length = 0;
+    if (Array.isArray(cur0.refPhotos)) cur0.refPhotos.length = 0;
+    cur0.okPhoto = '';
     img = null;
     cur = null;
     drawing = false;
     if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const pi = document.getElementById('photoInput');
-    const ri = document.getElementById('refPhotoInput');
-    if (pi) pi.value = '';
-    if (ri) ri.value = '';
+    ['photoInput', 'refPhotoInput', 'okPhotoInput'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
     if (Store.touch) Store.touch();
     render();
     renderMarkers();
     renderRefs();
+    renderOkPhoto();
   }
 
-  global.Annotate = { mount, load, reset, composite, markerCrops, render, renderMarkers, importRegions };
+  global.Annotate = { mount, load, reset, composite, markerCrops, render, renderMarkers, renderOkPhoto, importRegions };
 })(window);

@@ -153,7 +153,9 @@
     if (!docEl) return;
     const r = Store.current();
     const photo = (global.Annotate && Annotate.composite()) || '';
-    const refs = r.refPhotos || [];
+    const refs = (r.refPhotos || []).map((e) => (typeof e === 'string' ? { url: e, kind: '', note: '' } : e)).filter((e) => e && e.url);
+    const okPhoto = r.okPhoto || '';
+    const measures = (r.measures || []).filter((m) => (m.item || '').trim() || (m.spec || '').trim() || (m.actual || '').trim());
     const fbSVG = (global.Fishbone && Fishbone.svgString()) || '';
     let h = '';
 
@@ -199,13 +201,30 @@
     ], true);
 
     // 불량 사진
-    if (photo || markerTable()) {
+    if (photo || markerTable() || okPhoto || refs.length) {
       h += sectionHead('PHOTO', '불량 사진 및 표시 영역');
       if (photo) h += '<div class="photo-block"><img src="' + photo + '" alt="불량 사진"></div>';
       h += markerTable();
+      if (okPhoto) {
+        h += '<div class="photo-block"><div class="photo-cap">' + L('양품(OK) 기준') + '</div><img src="' + okPhoto + '" alt="OK"></div>';
+      }
+      if (refs.length) {
+        h += '<div class="two-col">' + refs.map((e) => {
+          const cap = [e.kind && (lang === 'ko' ? e.kind : T(e.kind)), e.note].filter(Boolean).join(' · ');
+          return '<div class="photo-block">' + (cap ? '<div class="photo-cap">' + esc(cap) + '</div>' : '') + '<img src="' + e.url + '"></div>';
+        }).join('') + '</div>';
+      }
     }
-    if (refs.length) {
-      h += '<div class="two-col">' + refs.map((s) => '<div class="photo-block"><img src="' + s + '"></div>').join('') + '</div>';
+
+    // 측정 데이터 (규격 vs 실측)
+    if (measures.length) {
+      const msEn = (r.i18n && Array.isArray(r.i18n.measures)) ? r.i18n.measures : [];
+      h += sectionHead('DATA', '측정 데이터');
+      h += '<table><tr><th>' + L('항목') + '</th><th>' + L('규격') + '</th><th>' + L('실측') + '</th><th style="width:56px">' + L('판정') + '</th></tr>' +
+        measures.map((m, i) =>
+          '<tr><td>' + tv(m.item, (msEn[i] || {}).item) + '</td><td>' + val(m.spec) + '</td><td>' + val(m.actual) + '</td><td>' + (m.judge ? esc(T(m.judge)) : '<span class="empty">—</span>') + '</td></tr>'
+        ).join('') +
+        '</table>';
     }
 
     // D0

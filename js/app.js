@@ -210,6 +210,13 @@
         afterChange();
       });
     });
+    const mAdd = $('#measureAdd');
+    if (mAdd) mAdd.addEventListener('click', () => {
+      (Store.current().measures || (Store.current().measures = [])).push({ item: '', spec: '', actual: '', judge: '' });
+      Store.touch();
+      renderMeasures();
+      afterChange();
+    });
   }
 
   /* ---------- D7 문서 체크리스트 ---------- */
@@ -249,9 +256,11 @@
 
   function loadReport() {
     fillFields();
+    updatePartTypeHint();
     renderWhy();
     renderTable('d1');
     renderD6();
+    renderMeasures();
     renderD7Docs();
     Annotate.load();
     Fishbone.load();
@@ -294,6 +303,62 @@
     try { localStorage.setItem(AI_SCOPE_LS, JSON.stringify(getAiScope())); } catch (e) {}
   }
 
+  /* ---------- 부품 유형 선택 (AI 분석 계통 결정) ---------- */
+  const PART_TYPE_HINTS = {
+    '사출 단품 (성형품)': 'AI가 사출 성형 계통(사출압·보압·수지온도·금형온도·게이트·벤트·냉각·수축)으로만 원인·대책을 전개합니다.',
+    '조립품 (압입·나사·용착·클립·커넥터·하네스)': 'AI가 조립 계통(삽입력·체결 토크·압입 하중/변위·정렬 지그·2단 래치·도통/삽입깊이 검사)으로만 전개합니다. 참고 사진(측면·분해·상대 부품)·측정값 입력을 권장합니다.',
+    '사출 + 조립 복합': 'AI가 각 현상을 사출/조립 해당 계통으로 나눠 분석합니다.',
+  };
+  function updatePartTypeHint() {
+    const sel = $('#aux_partType'), hint = $('#partTypeHint');
+    if (sel && hint) hint.textContent = PART_TYPE_HINTS[sel.value] || '';
+  }
+  function initPartType() {
+    const sel = $('#aux_partType');
+    if (!sel || !Store.PART_TYPES) return;
+    (Store.PART_TYPES).forEach((p) => {
+      const o = document.createElement('option');
+      o.value = p; o.textContent = p;
+      sel.appendChild(o);
+    });
+    // 값 저장·afterChange 는 bindFields 의 공용 [data-field] 핸들러가 처리. 여기선 힌트만.
+    sel.addEventListener('change', updatePartTypeHint);
+  }
+
+  /* ---------- 측정값 (규격 vs 실측) ---------- */
+  function renderMeasures() {
+    const wrap = $('#measureList');
+    if (!wrap) return;
+    const list = Store.current().measures || (Store.current().measures = []);
+    wrap.innerHTML = '';
+    list.forEach((m, idx) => {
+      const row = document.createElement('div');
+      row.className = 'measure-row';
+      row.innerHTML =
+        '<input data-k="item" placeholder="항목 (예: 삽입 깊이)" />' +
+        '<input data-k="spec" placeholder="규격 (4.2±0.1mm)" />' +
+        '<input data-k="actual" placeholder="실측 (3.8mm)" />' +
+        '<select data-k="judge"><option value="">판정</option><option>OK</option><option>NG</option></select>' +
+        '<button type="button" class="del" title="삭제">×</button>';
+      row.querySelectorAll('[data-k]').forEach((el) => {
+        const k = el.dataset.k;
+        el.value = m[k] || '';
+        el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
+          m[k] = el.value;
+          Store.touch();
+          afterChange();
+        });
+      });
+      row.querySelector('.del').addEventListener('click', () => {
+        list.splice(idx, 1);
+        Store.touch();
+        renderMeasures();
+        afterChange();
+      });
+      wrap.appendChild(row);
+    });
+  }
+
   /* ---------- AI 공통 헬퍼 ---------- */
   function aiPreflight() {
     if (!AI.isOnline()) { toast('오프라인 상태입니다. «✍ 템플릿 작성»을 사용하세요.'); return false; }
@@ -313,16 +378,35 @@
       .map((s) => ({ n: s.n, note: (s.note || '').trim() }));
   }
 
-  // 전체 사진 + 각 표시영역 확대 크롭 + 참고 사진
+  // 전체 사진 + 표시영역 확대 크롭 + 양품(OK) 기준 사진 + 유형별 참고 사진
   function aiCollectImages() {
+    const r = Store.current();
     const images = [{ label: '전체 불량 사진 (빨간 박스·번호 = 표시 영역)', dataUrl: Annotate.composite() }];
     (Annotate.markerCrops(6) || []).forEach((c) => {
       images.push({ label: '표시 영역 ' + c.n + ' 확대' + (c.note ? ' — ' + c.note : ''), dataUrl: c.dataUrl });
     });
-    (Store.current().refPhotos || []).forEach((u, i) => {
-      images.push({ label: '참고 사진 ' + (i + 1), dataUrl: u });
+    if (r.okPhoto) {
+      images.push({ label: '양품(OK) 기준 사진 — 불량품과 이 사진의 차이를 비교', dataUrl: r.okPhoto });
+    }
+    (r.refPhotos || []).forEach((e, i) => {
+      const m = (typeof e === 'string') ? { url: e } : (e || {});
+      const label = ['참고 사진 ' + (i + 1), m.kind, m.note].filter(Boolean).join(' · ');
+      if (m.url) images.push({ label: label, dataUrl: m.url });
     });
     return images;
+  }
+
+  // AI 전달용 fields — 저장된 fields + 측정값(_measures) 임시 병합
+  function aiFields() {
+    const r = Store.current();
+    const f = Object.assign({}, r.fields || {});
+    const ms = (r.measures || []).filter((m) => (m.item || '').trim() || (m.spec || '').trim() || (m.actual || '').trim());
+    if (ms.length) {
+      f._measures = ms.map((m) =>
+        '· ' + (m.item || '(항목)') + ': 규격 ' + (m.spec || '-') + ' / 실측 ' + (m.actual || '-') + (m.judge ? ' → ' + m.judge : '')
+      ).join('\n');
+    }
+    return f;
   }
 
   /* ---------- 항목별 AI 보강 (D4 5-Why / D5 대책) ---------- */
@@ -341,7 +425,7 @@
         btn.textContent = '✦ 분석 중…';
         try {
           const out = await AI.assist(kind, {
-            fields: Store.current().fields || {},
+            fields: aiFields(),
             why: Store.current().why || { occur: [], escape: [] },
             markers: aiCollectMarkers(),
             images: isWhy ? aiCollectImages() : [{ label: '전체 불량 사진', dataUrl: Annotate.composite() }],
@@ -385,7 +469,7 @@
       fbBtn.textContent = '✦ 6M 보강 중… (약 30초)';
       try {
         const out = await AI.assist('fishbone', {
-          fields: Store.current().fields || {},
+          fields: aiFields(),
           why: Store.current().why || { occur: [], escape: [] },
           markers: aiCollectMarkers(),
           images: aiCollectImages(),
@@ -479,7 +563,7 @@
       const onStage = (s) => { aiBtn.textContent = '📷 ' + s; };
       onStage('분석 중… (1~2분)');
       try {
-        const { result } = await AI.analyze(aiCollectImages(), Store.current().fields || {}, aiCollectMarkers(), { onStage: onStage, scope: scope });
+        const { result } = await AI.analyze(aiCollectImages(), aiFields(), aiCollectMarkers(), { onStage: onStage, scope: scope });
         const n = Report.applyPhotoAnalysis(result, AI.scopeFilter(scope));
         loadReport();
         toast(n ? 'AI 작성 완료 — ' + n + '개 항목. 날짜·수량 등은 직접 확인해 채우세요.' : '분석 완료 — 반영할 결과가 없습니다.');
@@ -539,10 +623,13 @@
       });
       const d1 = (r.d1 || []).map((m) => ({ name: m.name || '', dept: m.dept || '', role: m.role || '' }));
       const d6 = (r.d6 || []).map((x) => ({ action: x.action || '', owner: x.owner || '', result: x.result || '' }));
+      const measures = (r.measures || [])
+        .filter((m) => (m.item || '').trim() || (m.spec || '').trim() || (m.actual || '').trim())
+        .map((m) => ({ item: m.item || '' }));
       return {
         fields: fields, why: why,
         fishbone: { problem: (r.fishbone || {}).problem || '', cats: cats },
-        d1: d1, d6: d6,
+        d1: d1, d6: d6, measures: measures,
       };
     }
     if (trBtn) {
@@ -565,6 +652,7 @@
             fishbone: (en && en.fishbone) || {},
             d1: (en && Array.isArray(en.d1)) ? en.d1 : [],
             d6: (en && Array.isArray(en.d6)) ? en.d6 : [],
+            measures: (en && Array.isArray(en.measures)) ? en.measures : [],
             updatedAt: Date.now(),
           };
           Store.touch();
@@ -592,7 +680,7 @@
       aiBtn.disabled = true;
       aiClarifyBtn.textContent = '❓ 질문 생성 중…';
       try {
-        const { questions } = await AI.askQuestions(aiCollectImages(), Store.current().fields || {}, aiCollectMarkers());
+        const { questions } = await AI.askQuestions(aiCollectImages(), aiFields(), aiCollectMarkers());
         if (!questions.length) { toast('추가 질문 없음 — 바로 «AI 8D 분석·작성»을 실행하세요'); return; }
         const ol = $('#aiQuestionList');
         ol.innerHTML = '';
@@ -702,6 +790,7 @@
     bindFields();
     initTableButtons();
     initAiScope();
+    initPartType();
     initMenu();
     initAiAssist();
     Annotate.mount(afterChange);

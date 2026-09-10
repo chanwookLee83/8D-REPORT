@@ -51,6 +51,24 @@
     'No': 'No',
     '표시 영역 불량 내용': 'Marked Area — Defect Description',
     '내용 미작성': 'not entered',
+    '양품(OK) 기준': 'OK Sample (reference)',
+    '불량품 다른 각도': 'Defect — other angle',
+    '측면': 'Side view',
+    '후면 · 반대편': 'Rear / opposite side',
+    '분해 (내부 단자·걸림부)': 'Disassembled (terminals / latch)',
+    '상대 부품 결합 상태': 'Mated with counterpart',
+    '게이지 · 측정 장면': 'Gauge / measurement',
+    '현미경 · 확대': 'Microscope / magnified',
+    '조립 지그 · 설비': 'Assembly jig / equipment',
+    '기타': 'Other',
+
+    // 측정 데이터
+    '측정 데이터': 'Measurement Data',
+    '항목': 'Item',
+    '규격': 'Spec',
+    '실측': 'Actual',
+    '판정': 'Judgement',
+    'OK': 'OK', 'NG': 'NG',
 
     // D0
     '증상 인식 / 초기 상황': 'Symptom Recognition / Initial Situation',
