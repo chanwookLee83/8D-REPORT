@@ -52,6 +52,8 @@
     '표시 영역 불량 내용': 'Marked Area — Defect Description',
     '내용 미작성': 'not entered',
     '양품(OK) 기준': 'OK Sample (reference)',
+    '도면': 'Drawing',
+    '도면 PDF 첨부 (AI 분석에 포함)': 'Drawing PDF attached (included in AI analysis)',
     '불량품 다른 각도': 'Defect — other angle',
     '측면': 'Side view',
     '후면 · 반대편': 'Rear / opposite side',

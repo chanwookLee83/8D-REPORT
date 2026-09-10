@@ -258,6 +258,8 @@ textarea{resize:vertical}
 
 .ok-photo-box{margin-top:12px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
 .ok-photo-box img{max-width:280px;border-radius:10px;border:1px solid var(--line)}
+.drawing-pdf{font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);border-radius:9px;padding:9px 12px}
+.report-doc .doc-attach{font-size:12px;font-weight:600;color:var(--ink-soft);border:1px dashed var(--line);border-radius:8px;padding:8px 12px;display:inline-block}
 
 /* 부품 유형 선택 바 */
 .ai-parttype{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin-bottom:10px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px}

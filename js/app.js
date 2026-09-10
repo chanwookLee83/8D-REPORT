@@ -387,6 +387,9 @@
     (Annotate.markerCrops(6) || []).forEach((c) => {
       images.push({ label: '표시 영역 ' + c.n + ' 확대' + (c.note ? ' — ' + c.note : ''), dataUrl: c.dataUrl });
     });
+    if (r.drawing) {
+      images.push({ label: '도면 — 치수·공차·GD&T·조립 관계·중요 특성 기준. 불량 부위와 대조', dataUrl: r.drawing });
+    }
     if (r.okPhoto) {
       images.push({ label: '양품(OK) 기준 사진 — 불량품과 이 사진의 차이를 비교', dataUrl: r.okPhoto });
     }

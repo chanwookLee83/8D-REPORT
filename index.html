@@ -229,6 +229,19 @@
     </div>
 
     <div class="card">
+      <h2>도면 (선택 · 이미지 또는 PDF)</h2>
+      <p class="hint">부품/조립 도면을 올리면 AI가 <b>치수·공차·GD&amp;T·조립 관계·중요 특성</b>을 참조해 불량 위치와 대조합니다. 조립 불량 근본원인 분석에 큰 도움이 됩니다.</p>
+      <label class="file-btn">도면 선택
+        <input type="file" id="drawingInput" accept="image/*,application/pdf" hidden />
+      </label>
+      <div id="drawingBox" class="ok-photo-box" hidden>
+        <img id="drawingImg" alt="도면" hidden />
+        <div id="drawingPdf" class="drawing-pdf" hidden>📄 도면 PDF 첨부됨 (AI 분석 시 함께 전달)</div>
+        <button type="button" id="drawingClear" class="btn btn-ghost danger">도면 삭제</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>양품(OK) 기준 사진 (선택)</h2>
       <p class="hint">불량품과 같은 부위의 <b>정상 제품</b> 사진. AI가 불량품과 대비 분석합니다. 조립 불량 판독에 특히 도움됩니다.</p>
       <label class="file-btn">양품 사진 선택
@@ -457,6 +470,15 @@
           <label>검출 · 검사 방식
             <input data-field="aux_inspMethod" list="dlInspMethod" placeholder="예: 자동 비전 검사 / 도통(통전) 검사 / 삽입 깊이 게이지" />
           </label>
+          <label>상대 결합 부품
+            <textarea data-field="aux_counterpart" rows="2" placeholder="상대 커넥터·브래킷·하네스의 부품명·P/N·공급사·LOT·최근 변경 여부"></textarea>
+          </label>
+          <label>지그 · 가이드 이력
+            <textarea data-field="aux_jigHistory" rows="2" placeholder="지그/가이드 번호, 마지막 교체·수리·검교정일, 점검 주기, 세팅값(형체력·압입력·토크)"></textarea>
+          </label>
+          <label>포카요케 · 체결 확인 현황
+            <textarea data-field="aux_pokayoke" rows="2" placeholder="현재 방오화 장치 유무, 2단 래치(클릭) 확인 방법(청각/센서/게이지), 순서 오류 방지 장치"></textarea>
+          </label>
         </div>
         <datalist id="dlAsmMethod">
           <option>압입 (프레스)</option>
@@ -499,6 +521,9 @@
         </label>
         <label>유사 과거 이력 · 재발 여부
           <textarea data-field="aux_history" rows="2" placeholder="동일/유사 불량 과거 발생 여부, 8D 번호, 당시 대책, 재발이면 그 사유"></textarea>
+        </label>
+        <label>재현 시험 결과
+          <textarea data-field="aux_repro" rows="2" placeholder="불량을 재현했는지 여부와 재현 조건(예: 삽입력 8N 이하로 낮추니 하프 래치 재현). 미실시면 '미실시'"></textarea>
         </label>
         <label>기타 특이사항
           <textarea data-field="aux_extra" rows="2" placeholder="고객 특별 요구, 현장 관찰 등"></textarea>

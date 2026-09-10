@@ -53,6 +53,7 @@
     if (!r || typeof r !== 'object') return r;
     if (r.fields && PT_MIGRATE[r.fields.aux_partType]) r.fields.aux_partType = PT_MIGRATE[r.fields.aux_partType];
     if (typeof r.okPhoto !== 'string') r.okPhoto = '';
+    if (typeof r.drawing !== 'string') r.drawing = '';
     if (!Array.isArray(r.measures)) r.measures = [];
     if (!Array.isArray(r.refPhotos)) r.refPhotos = [];
     r.refPhotos = r.refPhotos
@@ -84,6 +85,7 @@
       fields: { writeDate: todayISO(), rev: '0' },
       photo: { base: '', shapes: [] },
       okPhoto: '',
+      drawing: '',
       refPhotos: [],
       measures: [],
       d1: [],

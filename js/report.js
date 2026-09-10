@@ -155,6 +155,8 @@
     const photo = (global.Annotate && Annotate.composite()) || '';
     const refs = (r.refPhotos || []).map((e) => (typeof e === 'string' ? { url: e, kind: '', note: '' } : e)).filter((e) => e && e.url);
     const okPhoto = r.okPhoto || '';
+    const drawing = r.drawing || '';
+    const drawingIsPdf = /^data:application\/pdf/.test(drawing);
     const measures = (r.measures || []).filter((m) => (m.item || '').trim() || (m.spec || '').trim() || (m.actual || '').trim());
     const fbSVG = (global.Fishbone && Fishbone.svgString()) || '';
     let h = '';
@@ -201,10 +203,17 @@
     ], true);
 
     // 불량 사진
-    if (photo || markerTable() || okPhoto || refs.length) {
+    if (photo || markerTable() || okPhoto || drawing || refs.length) {
       h += sectionHead('PHOTO', '불량 사진 및 표시 영역');
       if (photo) h += '<div class="photo-block"><img src="' + photo + '" alt="불량 사진"></div>';
       h += markerTable();
+      if (drawing) {
+        h += '<div class="photo-block"><div class="photo-cap">' + L('도면') + '</div>'
+          + (drawingIsPdf
+            ? '<div class="doc-attach">📄 ' + L('도면 PDF 첨부 (AI 분석에 포함)') + '</div>'
+            : '<img src="' + drawing + '" alt="도면">')
+          + '</div>';
+      }
       if (okPhoto) {
         h += '<div class="photo-block"><div class="photo-cap">' + L('양품(OK) 기준') + '</div><img src="' + okPhoto + '" alt="OK"></div>';
       }

@@ -35,6 +35,19 @@
     fr.readAsDataURL(file);
   }
 
+  /* 파일을 그대로 dataURL 로 (PDF 도면 등, 리사이즈 없이) */
+  function fileToDataURL(file, cb) {
+    const fr = new FileReader();
+    fr.onload = function () { cb(fr.result); };
+    fr.readAsDataURL(file);
+  }
+
+  /* 도면: 이미지면 리사이즈, PDF면 원본 dataURL */
+  function loadDrawingFile(file, cb) {
+    if (file.type === 'application/pdf') fileToDataURL(file, cb);
+    else fileToImage(file, cb);
+  }
+
   function loadBase(cb) {
     const p = photo();
     if (!p.base) {
@@ -322,6 +335,25 @@
     if (url) { im.src = url; box.hidden = false; } else { im.removeAttribute('src'); box.hidden = true; }
   }
 
+  /* ---- 도면 (이미지 또는 PDF) ---- */
+  function isPdfUrl(u) { return /^data:application\/pdf/.test(u || ''); }
+  function renderDrawing() {
+    const box = document.getElementById('drawingBox');
+    const im = document.getElementById('drawingImg');
+    const pdf = document.getElementById('drawingPdf');
+    if (!box) return;
+    const url = Store.current().drawing || '';
+    if (!url) { box.hidden = true; if (im) im.removeAttribute('src'); return; }
+    box.hidden = false;
+    if (isPdfUrl(url)) {
+      if (im) im.hidden = true;
+      if (pdf) { pdf.hidden = false; }
+    } else {
+      if (pdf) pdf.hidden = true;
+      if (im) { im.hidden = false; im.src = url; }
+    }
+  }
+
   /* ---- 참고 사진 (유형·설명 라벨 포함) ---- */
   function refEntry(e) {
     return (typeof e === 'string') ? { url: e, kind: '', note: '' } : e;
@@ -418,6 +450,31 @@
       onChange();
     });
 
+    const dwInput = document.getElementById('drawingInput');
+    if (dwInput) dwInput.addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      if (f.type === 'application/pdf' && f.size > 4.5 * 1024 * 1024) {
+        alert('도면 PDF가 너무 큽니다 (' + (f.size / 1048576).toFixed(1) + 'MB). 4MB 이하 PDF 또는 이미지(캡처)로 올려 주세요.');
+        e.target.value = '';
+        return;
+      }
+      loadDrawingFile(f, (url) => {
+        Store.current().drawing = url;
+        Store.touch();
+        renderDrawing();
+        onChange();
+      });
+      e.target.value = '';
+    });
+    const dwClear = document.getElementById('drawingClear');
+    if (dwClear) dwClear.addEventListener('click', () => {
+      Store.current().drawing = '';
+      Store.touch();
+      renderDrawing();
+      onChange();
+    });
+
     toolbar.querySelectorAll('[data-tool]').forEach((b) =>
       b.addEventListener('click', () => {
         tool = b.dataset.tool;
@@ -451,6 +508,7 @@
       renderMarkers();
       renderRefs();
       renderOkPhoto();
+      renderDrawing();
     });
   }
 
@@ -460,13 +518,14 @@
     const p = photo();
     p.base = '';
     p.shapes = [];
+    cur0.drawing = '';
     if (Array.isArray(cur0.refPhotos)) cur0.refPhotos.length = 0;
     cur0.okPhoto = '';
     img = null;
     cur = null;
     drawing = false;
     if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ['photoInput', 'refPhotoInput', 'okPhotoInput'].forEach((id) => {
+    ['photoInput', 'refPhotoInput', 'okPhotoInput', 'drawingInput'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -475,7 +534,8 @@
     renderMarkers();
     renderRefs();
     renderOkPhoto();
+    renderDrawing();
   }
 
-  global.Annotate = { mount, load, reset, composite, markerCrops, render, renderMarkers, renderOkPhoto, importRegions };
+  global.Annotate = { mount, load, reset, composite, markerCrops, render, renderMarkers, renderOkPhoto, renderDrawing, importRegions };
 })(window);

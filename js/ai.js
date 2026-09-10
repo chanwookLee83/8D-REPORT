@@ -210,12 +210,16 @@
       ['조립 방식', fields.aux_asmMethod],
       ['작업 방식', fields.aux_asmAuto],
       ['검출·검사 방식', fields.aux_inspMethod],
+      ['상대 결합 부품', fields.aux_counterpart],
+      ['지그·가이드 이력', fields.aux_jigHistory],
+      ['포카요케·체결 확인 현황', fields.aux_pokayoke],
       ['발생 추세', fields.aux_trend],
       ['금형·호기/캐비티·설비', fields.aux_equip],
       ['재료 등급·로트·색상', fields.aux_material],
       ['성형/조립 조건 실측', fields.aux_condition],
       ['최근 4M 변경점', fields.aux_change],
       ['유사 과거 이력·재발 여부', fields.aux_history],
+      ['재현 시험 결과', fields.aux_repro],
       ['기타 특이사항', fields.aux_extra],
       ['되묻기 답변', fields.aux_answers],
     ]
@@ -303,7 +307,7 @@
       DOMAIN,
       '',
       '## 요청',
-      '첨부한 ' + (imgCount ? imgCount + '장의 ' : '') + '이미지는 각 [이미지 N] 라벨을 확인하세요: 전체 불량 사진(빨간 박스·번호=표시 영역) → 표시 영역 확대 크롭 → (있으면) 양품(OK) 기준 사진 → 유형별 참고 사진(측면·후면·분해·상대 부품 결합·게이지 측정 등). 양품 사진이 있으면 불량품과의 "차이"를 근거로 분석하고, 참고 사진의 유형 라벨을 활용해 다각도로 판독하세요.',
+      '첨부물은 각 [이미지 N] / [첨부 N] 라벨을 확인하세요: 전체 불량 사진(빨간 박스·번호=표시 영역) → 표시 영역 확대 크롭 → (있으면) 도면(치수·공차·GD&T·조립 관계·중요 특성) → 양품(OK) 기준 사진 → 유형별 참고 사진(측면·후면·분해·상대 부품 결합·게이지 측정 등). 도면이 있으면 표시 영역의 불량 부위를 도면의 규격·공차·중요 특성과 대조해 무엇이 이탈했는지 판단하고, 양품 사진이 있으면 불량품과의 "차이"를 근거로 분석하며, 참고 사진 유형 라벨로 다각도 판독하세요.',
       partial
         ? '★ 이번 분석 대상 구획: ' + scopeLabels(sc) + '. 아래 JSON 형태에 있는 키만 작성하고, 그 외 항목은 JSON에서 완전히 생략하세요.'
         : '',
@@ -331,21 +335,32 @@
     return JSON.parse(t.slice(s, e + 1));
   }
 
+  function splitPdfUrl(dataUrl) {
+    const m = /^data:application\/pdf;base64,(.+)$/.exec(dataUrl || '');
+    return m ? m[1] : null;
+  }
   function imageBlock(dataUrl) {
     const im = splitDataUrl(dataUrl);
     return im ? { type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } } : null;
   }
+  /* 이미지면 image 블록, PDF면 document 블록 */
+  function mediaBlock(dataUrl) {
+    const pdf = splitPdfUrl(dataUrl);
+    if (pdf) return { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf } };
+    return imageBlock(dataUrl);
+  }
 
-  /* images: [{label, dataUrl}, ...] 또는 하위호환용 단일 dataURL 문자열 → 라벨+이미지 블록 배열 */
+  /* images: [{label, dataUrl}, ...] 또는 하위호환용 단일 dataURL 문자열 → 라벨+블록 배열 (PDF 도면 포함) */
   function buildImageContent(images) {
     const list = Array.isArray(images) ? images : [{ label: '전체 불량 사진', dataUrl: images }];
     const content = [];
     let imgCount = 0;
     list.forEach((it) => {
-      const block = imageBlock(it && it.dataUrl);
+      const block = mediaBlock(it && it.dataUrl);
       if (!block) return;
       imgCount++;
-      content.push({ type: 'text', text: '[이미지 ' + imgCount + '] ' + (it.label || '사진') });
+      const kind = block.type === 'document' ? '[첨부 ' : '[이미지 ';
+      content.push({ type: 'text', text: kind + imgCount + '] ' + (it.label || '사진') });
       content.push(block);
     });
     return { content: content, imgCount: imgCount };
@@ -444,7 +459,8 @@
       mk,
       '',
       '## 요청',
-      '첨부한 ' + imgCount + '장의 이미지([이미지 N] 라벨 확인: 전체 → 확대 크롭 → 양품 기준 → 유형별 참고)를 관찰해, 다음을 불릿으로 정리하세요. (8D·대책 금지)',
+      '첨부물([이미지 N]/[첨부 N] 라벨: 전체 → 확대 크롭 → 도면 → 양품 기준 → 유형별 참고)을 관찰해, 다음을 불릿으로 정리하세요. (8D·대책 금지)',
+      '- 도면이 있으면: 불량 부위에 해당하는 규격·공차·중요 특성(GD&T)과, 사진상 관찰과의 대조',
       pt ? '- 지정된 부품 유형(' + pt + ') 기준으로 관찰' : '- 부품 유형 판단: 사출 성형품 / 조립품 / 복합 중 무엇으로 보이는지와 근거',
       '- 표시 영역별 관찰: 불량 형태(크랙·변형·미성형·이물·버·단차·눌림·미체결 등), 위치·방향·범위, 표면 상태',
       '- 양품(OK) 기준 사진이 있으면 불량품과의 차이점',
