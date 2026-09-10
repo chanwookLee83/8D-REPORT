@@ -441,6 +441,47 @@
     <details class="ai-settings no-print" id="aiAux">
       <summary>🧩 AI 분석 보조 정보 <span class="ai-aux-hint">(선택 · 채울수록 근본원인 분석이 정확해집니다)</span></summary>
       <div class="ai-settings-body">
+        <div class="aux-asm" id="auxAsm" hidden>
+          <div class="aux-asm-head">조립 상세 (조립품일 때 · AI가 이 메커니즘 중심으로 분석)</div>
+          <label>조립 방식
+            <input data-field="aux_asmMethod" list="dlAsmMethod" placeholder="예: 압입 (프레스) / 나사 체결 (전동 드라이버)" />
+          </label>
+          <label>작업 방식
+            <select data-field="aux_asmAuto">
+              <option value="">선택</option>
+              <option>자동 전용기</option>
+              <option>반자동 (작업자 + 지그·프레스)</option>
+              <option>수작업 (핸드)</option>
+            </select>
+          </label>
+          <label>검출 · 검사 방식
+            <input data-field="aux_inspMethod" list="dlInspMethod" placeholder="예: 자동 비전 검사 / 도통(통전) 검사 / 삽입 깊이 게이지" />
+          </label>
+        </div>
+        <datalist id="dlAsmMethod">
+          <option>압입 (프레스)</option>
+          <option>나사 체결 (전동 드라이버)</option>
+          <option>스냅핏 · 클립 체결</option>
+          <option>커넥터 · 단자 삽입</option>
+          <option>터미널 크림핑 (압착)</option>
+          <option>열 용착</option>
+          <option>초음파 용착</option>
+          <option>스핀 용착</option>
+          <option>접착 · 디스펜싱</option>
+          <option>라벨 · 씰링</option>
+        </datalist>
+        <datalist id="dlInspMethod">
+          <option>자동 비전 검사</option>
+          <option>도통(통전) 검사</option>
+          <option>삽입 깊이 게이지</option>
+          <option>팝업 게이지 (체결 확인)</option>
+          <option>압입 하중-변위 모니터링</option>
+          <option>토크 관리 (이력 저장)</option>
+          <option>전수 육안</option>
+          <option>샘플 육안</option>
+          <option>한도견본 대조</option>
+        </datalist>
+
         <label>발생 추세
           <textarea data-field="aux_trend" rows="2" placeholder="예: 초물 집중 / 특정 시간대(오전 교대 직후) / 3호기·2번 캐비티만 / 특정 작업자 / 연속 발생"></textarea>
         </label>

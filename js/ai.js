@@ -207,6 +207,9 @@
   function auxLines(fields) {
     const rows = [
       ['부품 유형(지정)', fields.aux_partType],
+      ['조립 방식', fields.aux_asmMethod],
+      ['작업 방식', fields.aux_asmAuto],
+      ['검출·검사 방식', fields.aux_inspMethod],
       ['발생 추세', fields.aux_trend],
       ['금형·호기/캐비티·설비', fields.aux_equip],
       ['재료 등급·로트·색상', fields.aux_material],
@@ -223,18 +226,40 @@
     return rows.join('\n');
   }
 
+  /* 조립 방식별 원인·질문 초점 */
+  function asmMethodFocus(fields) {
+    const m = ((fields.aux_asmMethod || '') + ' ' + (fields.aux_inspMethod || '')).toLowerCase()
+      + (fields.aux_asmMethod || '') + (fields.aux_inspMethod || '');
+    const has = (k) => m.indexOf(k) >= 0;
+    const parts = [];
+    if (has('나사') || has('스크류') || has('토크') || has('볼트')) parts.push('나사 체결: 드라이버 토크 세팅·검교정 주기, 착좌/크로스 스레드, 이중·미체결, 체결 카운트 관리, 소켓 마모');
+    if (has('압입') || has('프레스')) parts.push('압입: 프레스 스트로크·하중 설정, 압입 지그/부싱 마모, 부품 치수 산포, 정렬·윤활, 하중-변위 프로파일 이상');
+    if (has('스냅') || has('클립') || has('래치') || has('클릭')) parts.push('스냅핏·클립: 삽입각·삽입력, 클립 치수/재질 산포, 저온·재생재 취성, 2단 래치(클릭음) 확인');
+    if (has('커넥터') || has('단자') || has('하네스') || has('삽입')) parts.push('커넥터·단자 삽입: 단자 삽입 불완전(하프 래치), 정렬 지그, 상대 커넥터/하네스 텐션·로트, 도통(4단자) 검사');
+    if (has('크림') || has('압착')) parts.push('크림핑: 압착고(crimp height)·인장강도, 다이/앤빌 마모, 전선 스트립 길이·소선 빠짐, 압착 프로파일');
+    if (has('용착') || has('초음파') || has('스핀') || has('웰딩')) parts.push('용착: 에너지·시간·압력·홀드 설정, 혼/앤빌 마모, 접합면 이물·단차, 부스터/앰프 열화, 용착 강도(인장·기밀) 검사');
+    if (has('비전') || has('vision')) parts.push('자동 비전: 조명·초점·판정 임계값, 티칭 기준, NG 표본 검출율, 오버킬/언더킬');
+    if (parts.length) return '## 조립 방식 초점 (이 메커니즘 중심으로 D4·5-Why·D5·질문 전개)\n- ' + parts.join('\n- ');
+    return '';
+  }
+
   /* 지정된 부품 유형 → 사용할 원인 계통 지시문 */
-  function partTypeDirective(pt) {
+  function partTypeDirective(pt, fields) {
     const s = (pt || '').trim();
-    if (!s) return '';
     const asm = s.indexOf('조립') >= 0;
     const inj = s.indexOf('사출') >= 0;
-    let body;
-    if (asm && inj) body = '사출·조립 복합. 각 현상을 사출(A) 또는 조립(B) 해당 계통으로 귀속해 분석하세요.';
-    else if (asm) body = '조립품. 표준 원인 계통 B(조립)의 메커니즘만 사용: 삽입력·체결 토크·압입 하중/변위·정렬 지그 마모·2단 래치(클릭) 확인·도통/삽입깊이 검사·상대 부품/하네스 로트 수준으로 원인·대책을 전개하고, 사출 파라미터(사출압·보압·수지온도)는 언급하지 마세요.';
-    else if (inj) body = '사출 성형품. 표준 원인 계통 A(사출)의 메커니즘만 사용: 사출압·보압·수지온도·금형온도·게이트·벤트·냉각·수축·금형 마모 수준으로 전개하고, 조립 파라미터는 언급하지 마세요.';
-    else body = s;
-    return '## 부품 유형 (작성자 지정 — 반드시 이 계통으로만 분석)\n- ' + s + '\n- ' + body;
+    const extra = [];
+    if (s) {
+      let body;
+      if (asm && inj) body = '사출·조립 복합. 각 현상을 사출(A) 또는 조립(B) 해당 계통으로 귀속해 분석하세요.';
+      else if (asm) body = '조립품. 표준 원인 계통 B(조립)의 메커니즘만 사용: 삽입력·체결 토크·압입 하중/변위·정렬 지그 마모·2단 래치(클릭) 확인·도통/삽입깊이 검사·상대 부품/하네스 로트 수준으로 원인·대책을 전개하고, 사출 파라미터(사출압·보압·수지온도)는 언급하지 마세요.';
+      else if (inj) body = '사출 성형품. 표준 원인 계통 A(사출)의 메커니즘만 사용: 사출압·보압·수지온도·금형온도·게이트·벤트·냉각·수축·금형 마모 수준으로 전개하고, 조립 파라미터는 언급하지 마세요.';
+      else body = s;
+      extra.push('## 부품 유형 (작성자 지정 — 반드시 이 계통으로만 분석)\n- ' + s + '\n- ' + body);
+    }
+    const amf = asmMethodFocus(fields || {});
+    if (amf) extra.push(amf);
+    return extra.join('\n\n');
   }
 
   function buildPrompt(fields, markers, imgCount, observations, scope) {
@@ -257,7 +282,7 @@
       : '- (표시 영역 없음)';
 
     const aux = auxLines(fields);
-    const ptd = partTypeDirective(fields.aux_partType);
+    const ptd = partTypeDirective(fields.aux_partType, fields);
 
     return [
       '## 기본 정보',
@@ -467,6 +492,7 @@
       '## 요청',
       '첨부한 ' + imgCount + '장의 이미지와 위 정보를 보고, 근본원인(D4)·재발방지(D5)를 정확히 확정하기 위해 작성자에게 물어야 할 핵심 질문만 3~6개 뽑아 JSON 으로 출력하세요: {"questions": ["...", "..."]}',
       focus,
+      asmMethodFocus(fields),
     ].join('\n');
   }
 

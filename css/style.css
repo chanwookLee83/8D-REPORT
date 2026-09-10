@@ -265,6 +265,12 @@ textarea{resize:vertical}
 .ai-parttype select{border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12.5px;background:#fff;color:var(--ink);font-family:inherit}
 .ai-parttype .hint{flex:1 1 100%;margin:0}
 
+/* 조립 상세 */
+.aux-asm{border:1px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.aux-asm-head{font-size:12px;font-weight:800;color:var(--accent)}
+.aux-asm > label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--ink-soft)}
+.aux-asm input,.aux-asm select{border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:13px;background:#fff;color:var(--ink);font-family:inherit}
+
 /* 측정값 입력 */
 .aux-measures{border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
 .aux-measures-head{font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px}

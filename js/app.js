@@ -306,12 +306,14 @@
   /* ---------- 부품 유형 선택 (AI 분석 계통 결정) ---------- */
   const PART_TYPE_HINTS = {
     '사출 단품 (성형품)': 'AI가 사출 성형 계통(사출압·보압·수지온도·금형온도·게이트·벤트·냉각·수축)으로만 원인·대책을 전개합니다.',
-    '조립품 (압입·나사·용착·클립·커넥터·하네스)': 'AI가 조립 계통(삽입력·체결 토크·압입 하중/변위·정렬 지그·2단 래치·도통/삽입깊이 검사)으로만 전개합니다. 참고 사진(측면·분해·상대 부품)·측정값 입력을 권장합니다.',
+    '조립품 (압입·나사·용착·클립·커넥터·하네스)': 'AI가 조립 계통으로만 전개합니다. 아래 🧩 보조 정보의 «조립 상세»(조립 방식·작업 방식·검사 방식)와 참고 사진(측면·분해·상대 부품)·측정값을 채우면 훨씬 정확해집니다.',
     '사출 + 조립 복합': 'AI가 각 현상을 사출/조립 해당 계통으로 나눠 분석합니다.',
   };
   function updatePartTypeHint() {
     const sel = $('#aux_partType'), hint = $('#partTypeHint');
     if (sel && hint) hint.textContent = PART_TYPE_HINTS[sel.value] || '';
+    const asm = $('#auxAsm');
+    if (asm) asm.hidden = !(sel && sel.value.indexOf('조립') >= 0);
   }
   function initPartType() {
     const sel = $('#aux_partType');
