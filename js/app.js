@@ -247,8 +247,16 @@
     Store.all().forEach((r) => {
       const o = document.createElement('option');
       o.value = r.id;
-      const d = new Date(r.updatedAt);
-      o.textContent = Store.title(r) + '  ·  ' + (d.getMonth() + 1) + '/' + d.getDate();
+      const wd = (r.fields && r.fields.writeDate) || '';
+      const m = wd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      let dateLabel;
+      if (m) {
+        dateLabel = parseInt(m[2], 10) + '/' + parseInt(m[3], 10);
+      } else {
+        const d = new Date(r.updatedAt);
+        dateLabel = (d.getMonth() + 1) + '/' + d.getDate();
+      }
+      o.textContent = Store.title(r) + '  ·  ' + dateLabel;
       if (r.id === cur.id) o.selected = true;
       sel.appendChild(o);
     });
@@ -690,11 +698,24 @@
         const ol = $('#aiQuestionList');
         ol.innerHTML = '';
         questions.forEach((q) => { const li = document.createElement('li'); li.textContent = q; ol.appendChild(li); });
+        const f = Store.current().fields;
+        const newQuestionsKey = questions.join('\n');
+        const sameQuestions = newQuestionsKey === (f.aux_questions || '');
         const ans = $('#aiAnswerInput');
-        ans.value = Store.current().fields.aux_answers || '';
+        if (sameQuestions) {
+          ans.value = f.aux_answers || '';
+        } else {
+          // 질문이 바뀌면 이전 답변은 더 이상 맞지 않으므로 초기화
+          ans.value = '';
+          f.aux_answers = '';
+          f.aux_questions = newQuestionsKey;
+          Store.touch();
+        }
+        if (!ans.value.trim()) ans.value = '1) ';
         qBox.hidden = false;
         qBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         ans.focus();
+        ans.setSelectionRange(ans.value.length, ans.value.length);
       } catch (e) {
         toast('질문 생성 실패: ' + (e && e.message ? e.message : e));
       } finally {
@@ -704,6 +725,26 @@
       }
     });
     $('#aiQuestionCancel').addEventListener('click', () => { qBox.hidden = true; });
+    // 답변란에서 Enter 치면 다음 번호(N) )를 자동으로 이어붙임
+    $('#aiAnswerInput').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+      e.preventDefault();
+      const el = e.target;
+      const pos = el.selectionStart;
+      const before = el.value.slice(0, pos);
+      const after = el.value.slice(pos);
+      const currentLine = before.slice(before.lastIndexOf('\n') + 1);
+      const cur = currentLine.match(/^(\d+)\)/);
+      let next = cur ? parseInt(cur[1], 10) + 1 : 1;
+      if (!cur) {
+        const nums = before.split('\n').map((l) => { const m = l.match(/^(\d+)\)/); return m ? parseInt(m[1], 10) : 0; });
+        next = Math.max(0, ...nums) + 1;
+      }
+      const insert = '\n' + next + ') ';
+      el.value = before + insert + after;
+      const p = before.length + insert.length;
+      el.setSelectionRange(p, p);
+    });
     $('#aiAnswerSubmit').addEventListener('click', () => {
       const ans = $('#aiAnswerInput').value.trim();
       Store.current().fields.aux_answers = ans;
