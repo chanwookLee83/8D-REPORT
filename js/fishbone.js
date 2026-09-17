@@ -194,12 +194,13 @@
         const px = anchorX + (tipX - anchorX) * f;
         const py = spineY + (tipY - spineY) * f;
         const lineLen = 140;
-        line(px, py, px - lineLen, py, SOFT, 1.6);
-        label(px - 10, py - 6, c.text || '(원인)', FS_CAUSE, INK, 'end');
+        const dir = j % 2 === 0 ? -1 : 1; // 가시를 좌우 번갈아 배치
+        line(px, py, px + lineLen * dir, py, SOFT, 1.6);
+        label(px + 10 * dir, py - 6, c.text || '(원인)', FS_CAUSE, INK, dir === -1 ? 'end' : 'start');
         (c.subs || []).filter(Boolean).forEach((sub, si) => {
           const sy = py + (FS_SUB + 6) + si * (FS_SUB + 5);
-          line(px - lineLen + 12, py, px - lineLen + 26, sy, '#b8bcc8', 1.2);
-          label(px - lineLen + 30, sy + 3, sub, FS_SUB, SOFT, 'start');
+          line(px + (lineLen - 12) * dir, py, px + (lineLen - 26) * dir, sy, '#b8bcc8', 1.2);
+          label(px + (lineLen - 30) * dir, sy + 3, sub, FS_SUB, SOFT, dir === -1 ? 'start' : 'end');
         });
       });
     }
