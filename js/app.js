@@ -823,10 +823,48 @@
   window.addEventListener('qcr:quota', () => toast('저장 공간이 부족합니다. 오래된 대책서를 삭제하거나 백업 후 정리하세요.'));
 
   /* ---------- PWA ---------- */
+  function showUpdateBanner(waitingWorker) {
+    const bar = $('#updateBanner');
+    if (!bar) return;
+    const notesEl = $('#updateNotes');
+    const ch = window.APP_CHANGELOG;
+    notesEl.innerHTML = '';
+    (ch && ch.notes || []).forEach((n) => {
+      const li = document.createElement('li');
+      li.textContent = n;
+      notesEl.appendChild(li);
+    });
+    bar.hidden = false;
+    $('#updateNowBtn').onclick = () => {
+      $('#updateNowBtn').disabled = true;
+      $('#updateNowBtn').textContent = '업데이트 중…';
+      waitingWorker.postMessage('SKIP_WAITING');
+    };
+    $('#updateLaterBtn').onclick = () => { bar.hidden = true; };
+  }
+
   function initPWA() {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-    }
+    if (!('serviceWorker' in navigator)) return;
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        // 이미 대기 중인 새 버전이 있으면(예: 백그라운드에서 미리 받아둔 경우) 바로 안내
+        if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting);
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            // controller가 이미 있다는 건 "새로 설치"가 아니라 "업데이트"라는 뜻
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(nw);
+          });
+        });
+      }).catch(() => {});
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
+    });
   }
 
   /* ---------- 시작 ---------- */

@@ -1,5 +1,5 @@
 /* 품질 대책서 PWA · 서비스 워커 (오프라인 캐시) */
-const CACHE = 'qcr-v34';
+const CACHE = 'qcr-v35';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const ASSETS = [
   './js/fishbone.js',
   './js/report.js',
   './js/ai.js',
+  './js/changelog.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -18,7 +19,9 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // skipWaiting을 자동 호출하지 않음 — 새 버전은 대기 상태로 두고,
+  // 사용자가 업데이트 배너에서 "지금 업데이트"를 눌러야 활성화됨(아래 message 핸들러)
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
 });
 
 self.addEventListener('activate', (e) => {
@@ -26,6 +29,10 @@ self.addEventListener('activate', (e) => {
     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (e) => {
