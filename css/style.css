@@ -33,27 +33,29 @@ input,select,textarea{font-family:inherit;font-size:14px;word-break:break-word;o
   position:sticky;top:0;z-index:40;
   display:flex;justify-content:space-between;align-items:center;gap:16px;
   padding:10px 18px;
-  background:linear-gradient(180deg,#0c73e9,#095bb5);
-  color:#fff;
+  background:var(--surface);
+  color:var(--ink);
+  border-bottom:1px solid var(--line);
+  box-shadow:0 1px 2px rgba(20,22,30,.05);
   padding-top:calc(10px + env(safe-area-inset-top));
 }
 .appbar-left{display:flex;align-items:center;gap:12px;min-width:0}
 .logo{
   width:38px;height:38px;border-radius:11px;flex:none;
-  background:rgba(255,255,255,.16);
+  background:var(--accent);
   display:grid;place-items:center;color:#fff;
 }
-.appbar h1{font-size:16px;line-height:1.1}
-.subtitle{margin:2px 0 0;font-size:11px;opacity:.8}
+.appbar h1{font-size:16px;line-height:1.1;color:var(--ink)}
+.subtitle{margin:2px 0 0;font-size:11px;color:var(--ink-soft)}
 .appbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .report-picker{
   width:clamp(320px, 46vw, 640px); min-width:280px; flex:1 1 auto;
-  padding:7px 10px; border-radius:9px; border:0;
-  background:rgba(255,255,255,.15); color:#fff; font-size:12.5px;
+  padding:7px 10px; border-radius:9px; border:1px solid var(--line);
+  background:var(--bg); color:var(--ink); font-size:12.5px;
 }
 .report-picker option{color:#1e2230}
-.save-status{font-size:11.5px;opacity:.85;min-width:52px;text-align:center}
-.save-status.dirty{opacity:1;color:#fde68a}
+.save-status{font-size:11.5px;color:var(--ink-soft);min-width:52px;text-align:center}
+.save-status.dirty{color:var(--warn);font-weight:700}
 
 .btn{
   border:0;border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:600;
@@ -62,8 +64,8 @@ input,select,textarea{font-family:inherit;font-size:14px;word-break:break-word;o
 .btn:hover{filter:brightness(.97)}
 .btn:disabled{opacity:.55;cursor:default;pointer-events:none}
 .btn-primary{background:var(--accent);color:#fff}
-.btn-ghost{background:rgba(255,255,255,.15);color:#fff}
-.btn-ghost.danger{color:#fecdd3}
+.btn-ghost{background:var(--bg);color:var(--ink-soft);border:1px solid var(--line)}
+.btn-ghost.danger{color:var(--danger)}
 .wrap .btn-ghost{background:#f1f2f6;color:var(--ink-soft)}
 .wrap .btn-ghost.danger{color:var(--danger)}
 
