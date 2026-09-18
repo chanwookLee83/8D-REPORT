@@ -686,8 +686,20 @@
     }
 
     // ── 되묻기 모드 ──
-    aiClarifyBtn.addEventListener('click', async () => {
-      if (!aiPreflight()) return;
+    // 질문·답변을 항상 대책서 필드에 캐시해둠 — 창을 다시 열 때 그대로 복원하고,
+    // «🔄 질문 새로 받기»를 눌러야만 AI를 다시 불러 새 질문으로 교체(+답변 초기화)함.
+    function showQuestionBox(questions, answerText) {
+      const ol = $('#aiQuestionList');
+      ol.innerHTML = '';
+      questions.forEach((q) => { const li = document.createElement('li'); li.textContent = q; ol.appendChild(li); });
+      const ans = $('#aiAnswerInput');
+      ans.value = (answerText || '').trim() || '1) ';
+      qBox.hidden = false;
+      qBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      ans.focus();
+      ans.setSelectionRange(ans.value.length, ans.value.length);
+    }
+    async function fetchNewQuestions() {
       const label = aiClarifyBtn.textContent;
       aiClarifyBtn.disabled = true;
       aiBtn.disabled = true;
@@ -695,27 +707,11 @@
       try {
         const { questions } = await AI.askQuestions(aiCollectImages(), aiFields(), aiCollectMarkers());
         if (!questions.length) { toast('추가 질문 없음 — 바로 «AI 8D 분석·작성»을 실행하세요'); return; }
-        const ol = $('#aiQuestionList');
-        ol.innerHTML = '';
-        questions.forEach((q) => { const li = document.createElement('li'); li.textContent = q; ol.appendChild(li); });
         const f = Store.current().fields;
-        const newQuestionsKey = questions.join('\n');
-        const sameQuestions = newQuestionsKey === (f.aux_questions || '');
-        const ans = $('#aiAnswerInput');
-        if (sameQuestions) {
-          ans.value = f.aux_answers || '';
-        } else {
-          // 질문이 바뀌면 이전 답변은 더 이상 맞지 않으므로 초기화
-          ans.value = '';
-          f.aux_answers = '';
-          f.aux_questions = newQuestionsKey;
-          Store.touch();
-        }
-        if (!ans.value.trim()) ans.value = '1) ';
-        qBox.hidden = false;
-        qBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        ans.focus();
-        ans.setSelectionRange(ans.value.length, ans.value.length);
+        f.aux_questions = questions.join('\n');
+        f.aux_answers = '';
+        Store.touch();
+        showQuestionBox(questions, '');
       } catch (e) {
         toast('질문 생성 실패: ' + (e && e.message ? e.message : e));
       } finally {
@@ -723,6 +719,18 @@
         aiBtn.disabled = false;
         aiClarifyBtn.textContent = label;
       }
+    }
+    aiClarifyBtn.addEventListener('click', async () => {
+      if (!aiPreflight()) return;
+      const f = Store.current().fields;
+      const cached = (f.aux_questions || '').split('\n').filter(Boolean);
+      if (cached.length) { showQuestionBox(cached, f.aux_answers || ''); return; }
+      await fetchNewQuestions();
+    });
+    $('#aiQuestionRegen').addEventListener('click', async () => {
+      if (!aiPreflight()) return;
+      if (!confirm('질문을 새로 받으면 지금까지 작성한 답변이 초기화됩니다. 계속할까요?')) return;
+      await fetchNewQuestions();
     });
     $('#aiQuestionCancel').addEventListener('click', () => { qBox.hidden = true; });
     // 답변란에서 Enter 치면 다음 번호(N) )를 자동으로 이어붙임
