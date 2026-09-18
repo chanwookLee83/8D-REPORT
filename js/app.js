@@ -823,6 +823,8 @@
   window.addEventListener('qcr:quota', () => toast('저장 공간이 부족합니다. 오래된 대책서를 삭제하거나 백업 후 정리하세요.'));
 
   /* ---------- PWA ---------- */
+  let updateRequested = false; // "지금 업데이트"를 실제로 눌렀을 때만 true — 첫 설치 등 다른 이유로 발생하는
+                                // controllerchange 에서는 페이지를 새로고침하지 않기 위한 플래그
   function showUpdateBanner(waitingWorker) {
     const bar = $('#updateBanner');
     if (!bar) return;
@@ -835,7 +837,10 @@
       notesEl.appendChild(li);
     });
     bar.hidden = false;
+    $('#updateNowBtn').disabled = false;
+    $('#updateNowBtn').textContent = '지금 업데이트';
     $('#updateNowBtn').onclick = () => {
+      updateRequested = true;
       $('#updateNowBtn').disabled = true;
       $('#updateNowBtn').textContent = '업데이트 중…';
       waitingWorker.postMessage('SKIP_WAITING');
@@ -860,7 +865,9 @@
       }).catch(() => {});
       let reloaded = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (reloaded) return;
+        // 사용자가 "지금 업데이트"를 누른 경우에만 새로고침 (첫 설치 시 자동 발생하는
+        // controllerchange 로 인해 배너가 뜨자마자 리로드되는 문제 방지)
+        if (!updateRequested || reloaded) return;
         reloaded = true;
         window.location.reload();
       });
