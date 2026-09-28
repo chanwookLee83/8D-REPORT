@@ -1,5 +1,7 @@
 /* 품질 대책서 PWA · 서비스 워커 (오프라인 캐시) */
-const CACHE = 'qcr-v41';
+// 이 값을 올릴 때마다 js/changelog.js의 notes도 최신 변경 내용으로 갱신할 것
+// (안 그러면 업데이트 배너에 옛날 내용이 계속 뜸)
+const CACHE = 'qcr-v42';
 const ASSETS = [
   './',
   './index.html',
