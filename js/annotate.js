@@ -49,9 +49,12 @@
   }
 
   function loadBase(cb) {
+    // 다른 대책서로 전환(삭제 후 다음 대책서로 넘어가는 경우 포함)한 순간, 새 사진 로드가
+    // 끝나기 전이라도 이전 대책서의 사진이 화면에 남아있지 않도록 즉시 비우고 다시 그린다.
+    img = null;
+    render();
     const p = photo();
     if (!p.base) {
-      img = null;
       if (cb) cb();
       return;
     }
@@ -503,13 +506,13 @@
   }
 
   function load() {
-    loadBase(() => {
-      render();
-      renderMarkers();
-      renderRefs();
-      renderOkPhoto();
-      renderDrawing();
-    });
+    // 참고 사진·양품 사진·도면·표시 영역 목록은 img(메인 사진) 로딩과 무관하므로,
+    // 메인 사진 비동기 로드를 기다리지 않고 즉시 현재 대책서 기준으로 갱신한다.
+    loadBase(() => render());
+    renderMarkers();
+    renderRefs();
+    renderOkPhoto();
+    renderDrawing();
   }
 
   /* 사진·표시·참고사진 상태를 완전히 비운다 (신규 대책서 시작 시) */
