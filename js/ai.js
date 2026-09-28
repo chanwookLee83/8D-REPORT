@@ -206,6 +206,7 @@
 
   function auxLines(fields) {
     const rows = [
+      ['작성자 메모 (자유 작성 — 중요하게 반영)', fields.aux_note],
       ['부품 유형(지정)', fields.aux_partType],
       ['조립 방식', fields.aux_asmMethod],
       ['작업 방식', fields.aux_asmAuto],
@@ -266,7 +267,64 @@
     return extra.join('\n\n');
   }
 
-  function buildPrompt(fields, markers, imgCount, observations, scope) {
+  /* 필드 키가 속한 구획(SECTIONS 키) 조회 */
+  function fieldSectionOf(key) {
+    for (let i = 0; i < SECTION_ORDER.length; i++) {
+      const s = SECTION_ORDER[i];
+      const sec = SECTIONS[s];
+      if (sec.fields && sec.fields.indexOf(key) >= 0) return s;
+    }
+    return null;
+  }
+
+  /* 작성자가 이미 채운 8D 내용(선택 여부 무관) — 선택 안 된 구획은 "참고만, 출력 금지"로 표시해
+   * AI가 다른 구획을 쓸 때 사실로 활용하되 값을 덮어쓰지 않도록 유도한다.
+   * state: { why:{occur,escape}, fishbone:{cats}, d6:[{type,area,action,...}] } */
+  function currentStateBlock(fields, scope, state) {
+    const scopeSet = new Set(normScope(scope));
+    const lines = [];
+    Object.keys(SHAPE_HINT.fields || {}).forEach((key) => {
+      const v = (fields[key] == null ? '' : String(fields[key])).trim();
+      if (!v) return;
+      const sec = fieldSectionOf(key);
+      if (sec === 'overview') return; // ctx 에 이미 표시됨
+      const inScope = sec ? scopeSet.has(sec) : false;
+      lines.push('- ' + (inScope ? '[선택됨 · 베이스로 다듬어 재작성]' : '[선택 안 됨 · 참고만, 출력 금지·유지]') + ' ' + key + ': ' + v);
+    });
+    state = state || {};
+    const why = state.why || {};
+    ['occur', 'escape'].forEach((ch) => {
+      const arr = (why[ch] || []).filter((x) => (x || '').trim());
+      if (!arr.length) return;
+      const inScope = scopeSet.has('d4');
+      lines.push('- ' + (inScope ? '[선택됨 · 베이스]' : '[선택 안 됨 · 참고만]') + ' 5-Why(' + (ch === 'occur' ? '발생' : '유출') + '): ' + arr.join(' → '));
+    });
+    const fb = state.fishbone;
+    if (fb && fb.cats) {
+      const parts = [];
+      Object.keys(fb.cats).forEach((k) => {
+        const list = (fb.cats[k] || []).filter((c) => c && (c.text || '').trim());
+        if (list.length) parts.push(k + ': ' + list.map((c) => c.text.trim()).join(', '));
+      });
+      if (parts.length) {
+        const inScope = scopeSet.has('fishbone');
+        lines.push('- ' + (inScope ? '[선택됨 · 베이스]' : '[선택 안 됨 · 참고만]') + ' 특성요인도(6M): ' + parts.join(' / '));
+      }
+    }
+    if (Array.isArray(state.d6) && state.d6.length) {
+      const s = state.d6
+        .filter((x) => x && (x.action || '').trim())
+        .map((x) => '(' + [x.type, x.area].filter(Boolean).join('/') + ') ' + x.action.trim())
+        .join(' ; ');
+      if (s) {
+        const inScope = scopeSet.has('d6');
+        lines.push('- ' + (inScope ? '[선택됨 · 베이스]' : '[선택 안 됨 · 참고만]') + ' D6 조치: ' + s);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  function buildPrompt(fields, markers, imgCount, observations, scope, state) {
     const sc = normScope(scope);
     const partial = sc.length < SECTION_ORDER.length;
     const ctx = [
@@ -287,6 +345,7 @@
 
     const aux = auxLines(fields);
     const ptd = partTypeDirective(fields.aux_partType, fields);
+    const csb = currentStateBlock(fields, scope, state);
 
     return [
       '## 기본 정보',
@@ -299,6 +358,8 @@
       ptd ? [ptd, ''] : []
     ).concat(
       aux ? ['## 보조 정보 — 작성자 제공 (사실로 신뢰. 근본원인·대책을 이 값에 맞춰 구체화)', aux, ''] : []
+    ).concat(
+      csb ? ['## 현재 8D 작성 상태 (작성자가 이미 입력한 내용)', csb, ''] : []
     ).concat(
       observations && observations.trim()
         ? ['## 1차 비전 관찰 결과 (동일 사진을 먼저 관찰한 결과. 이 관찰 사실을 근거로 8D 전개)', observations.trim(), '']
@@ -322,6 +383,7 @@
       sc.indexOf('d6') >= 0 ? '- d6_actions 는 D5 대책을 실행 단위로 나눈 배열(보통 3~6개). 각 항목: type 은 "TRC"(설비·금형·공정조건·Poka-Yoke 등 기술적) 또는 "MRC"(표준서 개정·교육·전담자 지정 등 관리적), area 는 "발생" 또는 "유출", action 은 종결형 평서문, owner·due·done 은 미확정이면 "[확인]", result 는 "달성 여부 확인:" 형식. 발생·유출 각각 최소 1개씩 포함.' : '',
       sc.indexOf('fishbone') >= 0 ? '- fishbone 은 6M(man·machine·material·method·measure·env) 카테고리별 원인 2~4개.' : '',
       sc.indexOf('overview') >= 0 ? '- regions.box 는 좌상단 (0,0) ~ 우하단 (1,1) 정규화 [x, y, w, h]. 표시 영역이 이미 있거나 표시할 것이 없으면 빈 배열.' : '',
+      csb ? '- "현재 8D 작성 상태"에서 [선택 안 됨] 표시 항목은 사실로 신뢰해 다른 항목 작성의 근거로만 쓰고, 그 키 자체는 출력에 포함하지 않습니다. [선택됨] 표시 항목은 그 내용을 베이스로 다듬어 재작성합니다(백지에서 새로 쓰지 말 것).' : '',
       '- 날짜·수량·LOT·인명은 지어내지 말고 해당 자리에 "[확인]" 표기.',
     ]).join('\n');
   }
@@ -482,7 +544,40 @@
     return arr.map((q) => String(q || '').trim()).filter(Boolean).slice(0, 8);
   }
 
-  function questionPrompt(fields, markers, imgCount) {
+  /* currentStateBlock 과 동일한 자료를 스코프 태그 없이 "이미 작성됨"으로만 나열 (질문·관찰 단계용) */
+  function writtenFieldsSummary(fields, state) {
+    const lines = [];
+    Object.keys(SHAPE_HINT.fields || {}).forEach((key) => {
+      const v = (fields[key] == null ? '' : String(fields[key])).trim();
+      if (!v || fieldSectionOf(key) === 'overview') return;
+      lines.push('- ' + key + ': ' + v);
+    });
+    state = state || {};
+    const why = state.why || {};
+    ['occur', 'escape'].forEach((ch) => {
+      const arr = (why[ch] || []).filter((x) => (x || '').trim());
+      if (arr.length) lines.push('- 5-Why(' + (ch === 'occur' ? '발생' : '유출') + '): ' + arr.join(' → '));
+    });
+    const fb = state.fishbone;
+    if (fb && fb.cats) {
+      const parts = [];
+      Object.keys(fb.cats).forEach((k) => {
+        const list = (fb.cats[k] || []).filter((c) => c && (c.text || '').trim());
+        if (list.length) parts.push(k + ': ' + list.map((c) => c.text.trim()).join(', '));
+      });
+      if (parts.length) lines.push('- 특성요인도(6M): ' + parts.join(' / '));
+    }
+    if (Array.isArray(state.d6) && state.d6.length) {
+      const s = state.d6
+        .filter((x) => x && (x.action || '').trim())
+        .map((x) => '(' + [x.type, x.area].filter(Boolean).join('/') + ') ' + x.action.trim())
+        .join(' ; ');
+      if (s) lines.push('- D6 조치: ' + s);
+    }
+    return lines.join('\n');
+  }
+
+  function questionPrompt(fields, markers, imgCount, state) {
     const mk = (markers && markers.length)
       ? markers.map((m) => '- ' + m.n + '번: ' + (m.note || '(내용 미기재)')).join('\n')
       : '- (표시 영역 없음)';
@@ -505,6 +600,7 @@
       mk,
       '',
       aux ? '## 이미 제공된 보조 정보 (이 내용은 다시 묻지 마세요)\n' + aux + '\n' : '',
+      (function () { const ws = writtenFieldsSummary(fields, state); return ws ? '## 작성자가 이미 채운 8D 내용 (다시 묻지 마세요)\n' + ws + '\n' : ''; })(),
       '## 요청',
       '첨부한 ' + imgCount + '장의 이미지와 위 정보를 보고, 근본원인(D4)·재발방지(D5)를 정확히 확정하기 위해 작성자에게 물어야 할 핵심 질문만 3~6개 뽑아 JSON 으로 출력하세요: {"questions": ["...", "..."]}',
       focus,
@@ -512,13 +608,15 @@
     ].join('\n');
   }
 
-  /* 근본원인 확정에 필요한 질문 목록을 받아온다 */
-  async function askQuestions(images, fields, markers) {
+  /* 근본원인 확정에 필요한 질문 목록을 받아온다. opts: { why, fishbone, d6 } */
+  async function askQuestions(images, fields, markers, opts) {
     if (!isOnline()) throw new Error('오프라인 상태입니다. 온라인에서 다시 시도하세요.');
     const built = buildImageContent(images);
     if (!built.imgCount) throw new Error('불량 사진을 먼저 업로드하세요.');
+    opts = opts || {};
+    const state = { why: opts.why, fishbone: opts.fishbone, d6: opts.d6 };
     const content = built.content.concat([
-      { type: 'text', text: questionPrompt(fields || {}, markers || [], built.imgCount) },
+      { type: 'text', text: questionPrompt(fields || {}, markers || [], built.imgCount, state) },
     ]);
     const out = await streamMessages(content, QUESTION_SYSTEM, 4000);
     return { questions: parseQuestions(out.text), usage: out.usage, model: out.model };
@@ -714,6 +812,7 @@
     const f = fields || {};
     const mk = markers || [];
     const scope = normScope(opts.scope);
+    const state = { why: opts.why, fishbone: opts.fishbone, d6: opts.d6 };
     const built = buildImageContent(images);
     if (!built.imgCount) throw new Error('불량 사진을 먼저 업로드하세요.');
 
@@ -731,7 +830,7 @@
 
     if (opts.onStage) opts.onStage(twoStage ? '2/2 8D 작성 중…' : '8D 작성 중…');
     const content = built.content.concat([
-      { type: 'text', text: buildPrompt(f, mk, built.imgCount, observations, scope) },
+      { type: 'text', text: buildPrompt(f, mk, built.imgCount, observations, scope, state) },
     ]);
     const out = await streamMessages(content, SYSTEM, 32000);
     return { result: extractJSON(out.text), scope: scope, observations: observations, usage: out.usage, model: out.model };

@@ -422,6 +422,16 @@
     return f;
   }
 
+  // 현재 5-Why·특성요인도·D6 조치 스냅샷 — AI가 "이미 작성된 내용" 참고용으로 사용
+  function aiCurrentState() {
+    const r = Store.current();
+    return {
+      why: r.why || { occur: [], escape: [] },
+      fishbone: r.fishbone || { problem: '', cats: {} },
+      d6: r.d6 || [],
+    };
+  }
+
   /* ---------- 항목별 AI 보강 (D4 5-Why / D5 대책) ---------- */
   function initAiAssist() {
     $$('[data-ai-assist]').forEach((btn) => {
@@ -576,7 +586,10 @@
       const onStage = (s) => { aiBtn.textContent = '📷 ' + s; };
       onStage('분석 중… (1~2분)');
       try {
-        const { result } = await AI.analyze(aiCollectImages(), aiFields(), aiCollectMarkers(), { onStage: onStage, scope: scope });
+        const state = aiCurrentState();
+        const { result } = await AI.analyze(aiCollectImages(), aiFields(), aiCollectMarkers(), {
+          onStage: onStage, scope: scope, why: state.why, fishbone: state.fishbone, d6: state.d6,
+        });
         const n = Report.applyPhotoAnalysis(result, AI.scopeFilter(scope));
         loadReport();
         toast(n ? 'AI 작성 완료 — ' + n + '개 항목. 날짜·수량 등은 직접 확인해 채우세요.' : '분석 완료 — 반영할 결과가 없습니다.');
@@ -705,7 +718,10 @@
       aiBtn.disabled = true;
       aiClarifyBtn.textContent = '❓ 질문 생성 중…';
       try {
-        const { questions } = await AI.askQuestions(aiCollectImages(), aiFields(), aiCollectMarkers());
+        const st = aiCurrentState();
+        const { questions } = await AI.askQuestions(aiCollectImages(), aiFields(), aiCollectMarkers(), {
+          why: st.why, fishbone: st.fishbone, d6: st.d6,
+        });
         if (!questions.length) { toast('추가 질문 없음 — 바로 «AI 8D 분석·작성»을 실행하세요'); return; }
         const f = Store.current().fields;
         f.aux_questions = questions.join('\n');
